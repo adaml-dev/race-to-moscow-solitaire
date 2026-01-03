@@ -31,21 +31,31 @@ function App() {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [transportForm, setTransportForm] = useState({ fuel: 0, ammo: 0, food: 0, direction: 'source-to-target', transportType: 'truck' });
 
-  // --- NAPRAWA LOGIKI CIĘŻARÓWEK ---
-  // Ten efekt uruchamia się za każdym razem, gdy wchodzimy w tryb dialogu transportowego
+  // --- OBSŁUGA NOWEJ GRY ---
+  const handleNewGame = () => {
+      if (window.confirm("Czy na pewno chcesz zacząć NOWĄ GRĘ? Cały obecny postęp zostanie utracony.")) {
+          store.resetGame(); // Reset danych w store
+          
+          // Reset lokalnych stanów UI
+          setViewState({ scale: 0.6, x: -100, y: -500 });
+          setSpacing(1.0);
+          setSelectedArmyId(armies[0].id);
+          setTransportForm({ fuel: 0, ammo: 0, food: 0, direction: 'source-to-target', transportType: 'truck' });
+      }
+  };
+
   useEffect(() => {
-      if (gameState === 'TRANSPORT_DIALOG') {
-          // Jeśli nie mamy ciężarówek, automatycznie przełącz na pociąg
-          if (playerResources.trucks <= 0 && playerResources.trains > 0) {
+      if (gameState === 'TRANSPORT_DIALOG' && store.selectedEdgeIndex !== null) {
+          const edge = edges[store.selectedEdgeIndex];
+          const isRail = edge.transportType === 'rail';
+
+          if (playerResources.trucks <= 0 && playerResources.trains > 0 && isRail) {
               setTransportForm(prev => ({ ...prev, transportType: 'train' }));
-          } 
-          // Jeśli mamy ciężarówki, domyślnie ciężarówka
-          else if (playerResources.trucks > 0) {
+          } else {
               setTransportForm(prev => ({ ...prev, transportType: 'truck' }));
           }
       }
-  }, [gameState, playerResources.trucks, playerResources.trains]);
-
+  }, [gameState, store.selectedEdgeIndex, playerResources.trucks, playerResources.trains, edges]);
 
   const updateZoom = (delta) => {
     if (!mapViewportRef.current) return;
@@ -93,7 +103,7 @@ function App() {
               <h1 style={{color: '#eab308', fontSize: '4em'}}>ZWYCIĘSTWO!</h1>
               <p style={{fontSize: '1.5em'}}>{victoryMessage}</p>
               <div style={{fontSize: '2em', margin: '20px'}}>🎖️ Zdobyte medale: {playerResources.medals}</div>
-              <button className="btn btn-primary" onClick={() => window.location.reload()}>ZAGRAJ PONOWNIE</button>
+              <button className="btn btn-primary" onClick={handleNewGame}>ZAGRAJ PONOWNIE</button>
           </div>
       );
   }
@@ -148,14 +158,10 @@ function App() {
         const toNode = transportForm.direction === 'source-to-target' ? targetNode : sourceNode;
         const capacity = transportForm.transportType === 'truck' ? 4 : 6;
         const currentLoad = transportForm.fuel + transportForm.ammo + transportForm.food;
-
-        // Walidacja: Czy stać nas na ten typ transportu?
-        const canAffordTransport = (transportForm.transportType === 'truck' && playerResources.trucks > 0) ||
-                                   (transportForm.transportType === 'train' && playerResources.trains > 0);
+        const canAffordTransport = (transportForm.transportType === 'truck' && playerResources.trucks > 0) || (transportForm.transportType === 'train' && playerResources.trains > 0);
 
         const handleConfirm = () => { 
             store.executeTransport(transportForm.transportType, fromNode.id, toNode.id, transportForm); 
-            // Reset jest teraz obsługiwany przez useEffect przy kolejnym otwarciu, ale tutaj resetujemy surowce
             setTransportForm(prev => ({ ...prev, fuel: 0, ammo: 0, food: 0 })); 
         };
         const increment = (res) => { if (currentLoad < capacity && (fromNode.resources?.[res] || 0) > transportForm[res]) setTransportForm({...transportForm, [res]: transportForm[res] + 1}); };
@@ -164,24 +170,12 @@ function App() {
             <div className="panel-section">
                 <div className="panel-title">Logistyka</div>
                 <label style={{fontSize:'0.85em', color:'#a1a1aa'}}>Pojazd:</label>
-                <select className="select-dark" value={transportForm.transportType} onChange={e => setTransportForm({...transportForm, transportType: e.target.value})}>
-                    <option value="truck" disabled={playerResources.trucks < 1}>Ciężarówka ({playerResources.trucks})</option>
-                    {edge.transportType === 'rail' && <option value="train" disabled={playerResources.trains < 1}>Pociąg ({playerResources.trains})</option>}
-                </select>
+                <select className="select-dark" value={transportForm.transportType} onChange={e => setTransportForm({...transportForm, transportType: e.target.value})}><option value="truck" disabled={playerResources.trucks < 1}>Ciężarówka ({playerResources.trucks})</option>{edge.transportType === 'rail' && <option value="train" disabled={playerResources.trains < 1}>Pociąg ({playerResources.trains})</option>}</select>
                 <div style={{display:'flex', gap:'5px', margin:'15px 0'}}><button className={`btn btn-sm ${transportForm.direction === 'target-to-source' ? 'btn-primary' : ''}`} onClick={() => setTransportForm({...transportForm, direction: 'target-to-source', fuel:0, ammo:0, food:0})}>{sourceNode.name}</button><span style={{alignSelf:'center'}}>➡</span><button className={`btn btn-sm ${transportForm.direction === 'source-to-target' ? 'btn-primary' : ''}`} onClick={() => setTransportForm({...transportForm, direction: 'source-to-target', fuel:0, ammo:0, food:0})}>{targetNode.name}</button></div>
                 <p style={{fontSize:'0.9em'}}>W magazynie ({fromNode.name}): ⛽{(fromNode.resources?.fuel||0)} 💣{(fromNode.resources?.ammo||0)} 🍞{(fromNode.resources?.food||0)}</p>
                 {['fuel', 'ammo', 'food'].map(res => (<div key={res} className="resource-row"><span>{res === 'fuel' ? '⛽' : (res === 'ammo' ? '💣' : '🍞')}</span><div><button className="btn btn-sm" onClick={() => setTransportForm({...transportForm, [res]: Math.max(0, transportForm[res]-1)})}>-</button><span style={{margin: '0 10px', fontWeight: 'bold'}}>{transportForm[res]}</span><button className="btn btn-sm" onClick={() => increment(res)}>+</button></div></div>))}
                 <div style={{textAlign:'center', margin:'10px 0', fontSize:'0.9em', color: currentLoad === capacity ? 'orange' : 'inherit'}}>Ładunek: {currentLoad} / {capacity}</div>
-                
-                <button 
-                    className="btn btn-success" 
-                    onClick={handleConfirm} 
-                    disabled={currentLoad === 0 || !canAffordTransport}
-                    title={!canAffordTransport ? "Brak pojazdów tego typu!" : "Wyślij"}
-                >
-                    WYŚLIJ
-                </button> 
-                <button className="btn btn-danger" onClick={() => store.toggleTransportMode()}>ANULUJ</button>
+                <button className="btn btn-success" onClick={handleConfirm} disabled={currentLoad === 0 || !canAffordTransport} title={!canAffordTransport ? "Brak pojazdów tego typu!" : "Wyślij"}>WYŚLIJ</button> <button className="btn btn-danger" onClick={() => store.toggleTransportMode()}>ANULUJ</button>
             </div>
         );
     }
@@ -202,7 +196,12 @@ function App() {
   return (
     <div className="app-container">
       <aside className="sidebar">
-        <div className="sidebar-header">RACE TO MOSCOW</div>
+        {/* ZMODYFIKOWANY NAGŁÓWEK Z PRZYCISKIEM NOWA GRA */}
+        <div className="sidebar-header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+            <span>RACE TO MOSCOW</span>
+            <button className="btn btn-danger btn-sm" style={{width: 'auto', margin: 0, padding: '2px 8px', fontSize: '0.8em'}} onClick={handleNewGame} title="Zresetuj grę">NOWA GRA</button>
+        </div>
+
         <div className="sidebar-scroll-content">
             {renderArmyStatus()}
             {renderActionContext()}
@@ -210,15 +209,7 @@ function App() {
         </div>
       </aside>
 
-      <main 
-        className="map-viewport"
-        ref={mapViewportRef}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onWheel={handleWheel}
-      >
+      <main className="map-viewport" ref={mapViewportRef} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onWheel={handleWheel}>
         <div className="map-content" style={{transform: `translate(${viewState.x}px, ${viewState.y}px) scale(${viewState.scale})`}}>
           <svg style={{ position: 'absolute', width: '5000px', height: '5000px', pointerEvents: 'none', zIndex: 0 }}>
             {edges.map((edge, index) => {
@@ -260,11 +251,8 @@ function App() {
                     onMouseDown={(e) => e.stopPropagation()}
                 >
                     <strong style={{ display: 'block', marginBottom: '3px' }}>{node.name}</strong>
-                    
-                    {/* NAPRAWA: Usunięto "!node.sovietMarker", żeby medal/gwiazda były zawsze widoczne */}
                     {node.medal && <span style={{fontSize: '1.2em', marginRight: '5px'}} title="Cel Medalowy">🎖️</span>}
                     {node.isVictory && <span style={{fontSize: '1.2em'}} title="Cel Główny">⭐</span>}
-                    
                     {node.type === 'fortified' && <span>🏰</span>}
                     {node.sovietMarker && <span style={{color: 'var(--accent-red)', fontSize: '1.2em', textShadow: '0 0 5px red'}}>☭</span>}
                     

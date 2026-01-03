@@ -246,8 +246,9 @@ const useGameStore = create(persist((set, get) => ({
 
   executeTransport: (transportType, sourceId, targetId, resourcesToMove) => {
     const { edges, nodes, selectedEdgeIndex, playerResources } = get();
-    
-    // ZABEZPIECZENIE PRZED UJEMNYMI ZASOBAMI
+    const edge = edges[selectedEdgeIndex]; // Pobieramy krawędź
+
+    // 1. ZABEZPIECZENIE: Czy zasoby są dostępne?
     if (transportType === 'truck' && playerResources.trucks <= 0) {
         set(state => ({ logs: [...state.logs, "⛔ BŁĄD: Brak ciężarówek!"] }));
         return;
@@ -257,9 +258,14 @@ const useGameStore = create(persist((set, get) => ({
         return;
     }
 
+    // 2. ZABEZPIECZENIE: Czy pociąg jedzie po torach? (FIX)
+    if (transportType === 'train' && edge.transportType !== 'rail') {
+        set(state => ({ logs: [...state.logs, "⛔ BŁĄD: Pociąg nie może jechać po drodze!"] }));
+        return;
+    }
+
+    // 3. ZABEZPIECZENIE: Czy linia nie jest przerwana przez wroga?
     const newNodes = [...nodes];
-    const newEdges = [...edges];
-    const newResources = { ...playerResources };
     const sourceNodeIndex = newNodes.findIndex(n => n.id === sourceId);
     const targetNodeIndex = newNodes.findIndex(n => n.id === targetId);
 
@@ -267,6 +273,10 @@ const useGameStore = create(persist((set, get) => ({
          set(state => ({ logs: [...state.logs, "⛔ BŁĄD: Linia przerwana przez wroga! Odbij teren."] }));
          return;
     }
+
+    // --- LOGIKA TRANSFERU ---
+    const newEdges = [...edges];
+    const newResources = { ...playerResources };
 
     Object.keys(resourcesToMove).forEach(key => {
         const amount = resourcesToMove[key];
@@ -290,6 +300,7 @@ const useGameStore = create(persist((set, get) => ({
         nodes: newNodes, edges: newEdges, playerResources: newResources, gameState: 'TRANSPORT_MODE',
         selectedEdgeIndex: null, logs: [...state.logs, `🚚 Transport (${transportType}) do ${newNodes[targetNodeIndex].name} wykonany.`]
     }));
+    
     if (shouldTriggerReorg) get().triggerReorganization();
   },
 
