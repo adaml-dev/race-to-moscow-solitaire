@@ -16,16 +16,13 @@ const isNeighbor = (currentId, targetId, edges) => {
 
 function App() {
   const store = useGameStore();
-  const { nodes, edges, armies, playerResources, logs, gameState, activeCard, gameStatus, victoryMessage } = store;
+  const { nodes, edges, armies, playerResources, logs, gameState, activeCard, gameStatus, victoryMessage, viewState, spacing } = store;
 
   const mapViewportRef = useRef(null);
 
   const [selectedArmyId, setSelectedArmyId] = useState(armies[0]?.id || null);
   const activeArmy = armies.find(a => a.id === selectedArmyId) || armies[0];
   const currentLocationNode = nodes.find(n => n.id === activeArmy.location);
-
-  const [viewState, setViewState] = useState({ scale: 0.6, x: -100, y: -500 });
-  const [spacing, setSpacing] = useState(1.0); 
 
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -34,11 +31,8 @@ function App() {
   // --- OBSŁUGA NOWEJ GRY ---
   const handleNewGame = () => {
       if (window.confirm("Czy na pewno chcesz zacząć NOWĄ GRĘ? Cały obecny postęp zostanie utracony.")) {
-          store.resetGame(); // Reset danych w store
-          
-          // Reset lokalnych stanów UI
-          setViewState({ scale: 0.6, x: -100, y: -500 });
-          setSpacing(1.0);
+          store.resetGame(); 
+          // Nie resetujemy viewState ani spacing, zgodnie z życzeniem!
           setSelectedArmyId(armies[0].id);
           setTransportForm({ fuel: 0, ammo: 0, food: 0, direction: 'source-to-target', transportType: 'truck' });
       }
@@ -68,7 +62,8 @@ function App() {
     const worldY = (centerY - viewState.y) / viewState.scale;
     const newX = centerX - (worldX * newScale);
     const newY = centerY - (worldY * newScale);
-    setViewState({ scale: newScale, x: newX, y: newY });
+    
+    store.setViewState({ scale: newScale, x: newX, y: newY });
   };
 
   const handleWheel = (e) => {
@@ -86,15 +81,16 @@ function App() {
 
   const handleMouseMove = (e) => {
     if (isDragging) {
-      setViewState(prev => ({ ...prev, x: e.clientX - dragStart.x, y: e.clientY - dragStart.y }));
+      store.setViewState({ ...viewState, x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
     }
   };
 
   const handleMouseUp = () => setIsDragging(false);
   
   const resetView = () => {
-      setViewState({ scale: 0.6, x: -100, y: -500 });
-      setSpacing(1.0);
+      // Opcjonalny przycisk resetu widoku (gdyby użytkownik się zgubił)
+      store.setViewState({ scale: 0.6, x: -100, y: -500 });
+      store.setSpacing(1.0);
   };
 
   if (gameStatus === 'VICTORY') {
@@ -196,7 +192,6 @@ function App() {
   return (
     <div className="app-container">
       <aside className="sidebar">
-        {/* ZMODYFIKOWANY NAGŁÓWEK Z PRZYCISKIEM NOWA GRA */}
         <div className="sidebar-header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
             <span>RACE TO MOSCOW</span>
             <button className="btn btn-danger btn-sm" style={{width: 'auto', margin: 0, padding: '2px 8px', fontSize: '0.8em'}} onClick={handleNewGame} title="Zresetuj grę">NOWA GRA</button>
@@ -209,7 +204,15 @@ function App() {
         </div>
       </aside>
 
-      <main className="map-viewport" ref={mapViewportRef} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onWheel={handleWheel}>
+      <main 
+        className="map-viewport"
+        ref={mapViewportRef}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onWheel={handleWheel}
+      >
         <div className="map-content" style={{transform: `translate(${viewState.x}px, ${viewState.y}px) scale(${viewState.scale})`}}>
           <svg style={{ position: 'absolute', width: '5000px', height: '5000px', pointerEvents: 'none', zIndex: 0 }}>
             {edges.map((edge, index) => {
@@ -251,6 +254,7 @@ function App() {
                     onMouseDown={(e) => e.stopPropagation()}
                 >
                     <strong style={{ display: 'block', marginBottom: '3px' }}>{node.name}</strong>
+                    
                     {node.medal && <span style={{fontSize: '1.2em', marginRight: '5px'}} title="Cel Medalowy">🎖️</span>}
                     {node.isVictory && <span style={{fontSize: '1.2em'}} title="Cel Główny">⭐</span>}
                     {node.type === 'fortified' && <span>🏰</span>}
@@ -291,8 +295,8 @@ function App() {
             <div style={{width:'1px', background:'var(--border-color)'}}></div>
             <div className="toolbar-group">
                 <span className="toolbar-label">Odległość:</span>
-                <button className="map-control-btn" onClick={() => setSpacing(s => Math.min(2.0, s + 0.1))}>↔️+</button>
-                <button className="map-control-btn" onClick={() => setSpacing(s => Math.max(0.5, s - 0.1))}>↔️-</button>
+                <button className="map-control-btn" onClick={() => store.setSpacing(Math.min(2.0, spacing + 0.1))}>↔️+</button>
+                <button className="map-control-btn" onClick={() => store.setSpacing(Math.max(0.5, spacing - 0.1))}>↔️-</button>
             </div>
             <div style={{width:'1px', background:'var(--border-color)'}}></div>
             <button className="map-control-btn" onClick={resetView} title="Resetuj widok">⟲</button>

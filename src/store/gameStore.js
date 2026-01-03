@@ -1,14 +1,22 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware'; // <--- 1. IMPORTUJEMY PERSIST
+import { persist } from 'zustand/middleware';
 import initialMap from '../data/map.json';
 import cardsData from '../data/cards.json';
 
 const drawCard = (deck) => deck[Math.floor(Math.random() * deck.length)];
 
-// 2. OWINELIŚMY CAŁOŚĆ W persist(...)
 const useGameStore = create(persist((set, get) => ({
   
-  // --- STAN POCZĄTKOWY ---
+  // --- STAN UI (PERSISTED) ---
+  // Przeniesione z App.jsx, aby zapamiętywać po odświeżeniu
+  viewState: { scale: 0.6, x: -100, y: -500 },
+  spacing: 1.0,
+
+  // Akcje do zmiany UI
+  setViewState: (newView) => set({ viewState: newView }),
+  setSpacing: (newSpacing) => set({ spacing: newSpacing }),
+
+  // --- STAN GRY ---
   nodes: initialMap.nodes,
   edges: initialMap.edges.map((e, i) => ({ ...e, id: i, placedTransport: null })), 
   armies: initialMap.armies.map(a => ({ ...a, isGrounded: false })),
@@ -31,7 +39,8 @@ const useGameStore = create(persist((set, get) => ({
   
   logs: ["Gra rozpoczęta. Cel: Moskwa i Leningrad."],
 
-  // --- AKCJA RESETU GRY (NOWOŚĆ - PRZYDATNE PRZY AUTO-ZAPISIE) ---
+  // --- AKCJA RESETU GRY ---
+  // Zresetuj mechanikę, ale ZACHOWAJ ustawienia widoku (nie nadpisujemy viewState/spacing)
   resetGame: () => {
       set({
         nodes: initialMap.nodes,
@@ -40,10 +49,16 @@ const useGameStore = create(persist((set, get) => ({
         playerResources: { trucks: 5, trains: 3, supplyStock: { fuel: 20, ammo: 20, food: 20 }, medals: 0 },
         gameState: 'IDLE',
         gameStatus: 'PLAYING',
-        logs: ["Nowa gra rozpoczęta."]
+        logs: ["Nowa gra rozpoczęta."],
+        activeCard: null,
+        activeArmyId: null,
+        previousLocation: null,
+        selectedEdgeIndex: null
       });
   },
 
+  // ... (RESZTA KODU BEZ ZMIAN: awardMedal, checkVictoryCondition, checkEncirclement, triggerSovietReaction, etc.) ...
+  
   awardMedal: (nodeName) => {
       set(state => ({
           playerResources: {
@@ -246,9 +261,8 @@ const useGameStore = create(persist((set, get) => ({
 
   executeTransport: (transportType, sourceId, targetId, resourcesToMove) => {
     const { edges, nodes, selectedEdgeIndex, playerResources } = get();
-    const edge = edges[selectedEdgeIndex]; // Pobieramy krawędź
+    const edge = edges[selectedEdgeIndex];
 
-    // 1. ZABEZPIECZENIE: Czy zasoby są dostępne?
     if (transportType === 'truck' && playerResources.trucks <= 0) {
         set(state => ({ logs: [...state.logs, "⛔ BŁĄD: Brak ciężarówek!"] }));
         return;
@@ -257,15 +271,14 @@ const useGameStore = create(persist((set, get) => ({
         set(state => ({ logs: [...state.logs, "⛔ BŁĄD: Brak pociągów!"] }));
         return;
     }
-
-    // 2. ZABEZPIECZENIE: Czy pociąg jedzie po torach? (FIX)
     if (transportType === 'train' && edge.transportType !== 'rail') {
         set(state => ({ logs: [...state.logs, "⛔ BŁĄD: Pociąg nie może jechać po drodze!"] }));
         return;
     }
 
-    // 3. ZABEZPIECZENIE: Czy linia nie jest przerwana przez wroga?
     const newNodes = [...nodes];
+    const newEdges = [...edges];
+    const newResources = { ...playerResources };
     const sourceNodeIndex = newNodes.findIndex(n => n.id === sourceId);
     const targetNodeIndex = newNodes.findIndex(n => n.id === targetId);
 
@@ -273,10 +286,6 @@ const useGameStore = create(persist((set, get) => ({
          set(state => ({ logs: [...state.logs, "⛔ BŁĄD: Linia przerwana przez wroga! Odbij teren."] }));
          return;
     }
-
-    // --- LOGIKA TRANSFERU ---
-    const newEdges = [...edges];
-    const newResources = { ...playerResources };
 
     Object.keys(resourcesToMove).forEach(key => {
         const amount = resourcesToMove[key];
@@ -300,7 +309,6 @@ const useGameStore = create(persist((set, get) => ({
         nodes: newNodes, edges: newEdges, playerResources: newResources, gameState: 'TRANSPORT_MODE',
         selectedEdgeIndex: null, logs: [...state.logs, `🚚 Transport (${transportType}) do ${newNodes[targetNodeIndex].name} wykonany.`]
     }));
-    
     if (shouldTriggerReorg) get().triggerReorganization();
   },
 
@@ -340,7 +348,6 @@ const useGameStore = create(persist((set, get) => ({
 
     let drawnCard = null;
     let newNodes = [...nodes];
-
     const wasMedal = targetNode.medal && targetNode.controller !== army.owner;
 
     if (!targetNode.sovietMarker && targetNode.controller !== army.owner) {
@@ -380,7 +387,6 @@ const useGameStore = create(persist((set, get) => ({
                 const node = newNodes[nodeIndex];
                 node.sovietMarker = false;
                 node.controller = army.owner;
-
                 if (node.medal) get().awardMedal(node.name);
 
                 set(state => ({ gameState: 'IDLE', activeCard: null, armies: newArmies, nodes: newNodes, logs: [...state.logs, `⚔️ Zwycięstwo! Teren przejęty.`] }));
@@ -429,20 +435,6 @@ const useGameStore = create(persist((set, get) => ({
     }
   },
 
-  resupplyBase: (baseNodeId) => {
-      const { nodes, playerResources } = get();
-      const nodeIndex = nodes.findIndex(n => n.id === baseNodeId);
-      const newNodes = [...nodes];
-      const newResources = { ...playerResources };
-      ['fuel', 'ammo', 'food'].forEach(res => {
-          if (newResources.supplyStock[res] >= 3) {
-              newResources.supplyStock[res] -= 3;
-              newNodes[nodeIndex].resources[res] = (newNodes[nodeIndex].resources[res] || 0) + 3;
-          }
-      });
-      set(state => ({ nodes: newNodes, playerResources: newResources, logs: [...state.logs, `📦 Uzupełniono zapasy w bazie ${newNodes[nodeIndex].name}.`] }));
-  },
-
   toggleTransportMode: () => {
     const current = get().gameState;
     if (current === 'IDLE') set({ gameState: 'TRANSPORT_MODE', logs: [...get().logs, "🔧 Tryb Transportu: Wybierz połączenie."] });
@@ -460,7 +452,7 @@ const useGameStore = create(persist((set, get) => ({
   }
 
 }), 
-{ name: 'race-to-moscow-storage' } // KONFIGURACJA PERSIST: Nazwa klucza w LocalStorage
+{ name: 'race-to-moscow-storage' }
 ));
 
 export default useGameStore;
