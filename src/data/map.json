@@ -1,0 +1,79 @@
+{
+  "nodes": [
+    {
+      "id": "tilsit",
+      "name": "Tilsit",
+      "type": "main_supply_base",
+      "controller": "gray",
+      "resources": { "fuel": 3, "ammo": 3, "food": 3 },
+      "hasRail": true,
+      "isVictory": false,
+      "x": 50,
+      "y": 400
+    },
+    {
+      "id": "riga",
+      "name": "Riga",
+      "type": "city",
+      "controller": "gray",
+      "resources": {},
+      "hasRail": false,
+      "isVictory": false,
+      "sovietMarker": false,
+      "x": 200,
+      "y": 250
+    },
+    {
+      "id": "jekabpils",
+      "name": "Jekabpils",
+      "type": "city",
+      "controller": null,
+      "resources": {},
+      "hasRail": false,
+      "isVictory": false,
+      "sovietMarker": false,
+      "x": 350,
+      "y": 300
+    },
+    {
+      "id": "pskov",
+      "name": "Pskov",
+      "type": "fortified",
+      "controller": null,
+      "resources": {},
+      "hasRail": false,
+      "isVictory": false,
+      "sovietMarker": true,
+      "x": 500,
+      "y": 200
+    },
+    {
+      "id": "leningrad",
+      "name": "Leningrad",
+      "type": "victory",
+      "controller": null,
+      "resources": {},
+      "hasRail": false,
+      "isVictory": true,
+      "sovietMarker": true,
+      "x": 650,
+      "y": 100
+    }
+  ],
+  "edges": [
+    { "source": "tilsit", "target": "riga", "transportType": "rail" },
+    { "source": "riga", "target": "jekabpils", "transportType": "road" },
+    { "source": "jekabpils", "target": "pskov", "transportType": "road" },
+    { "source": "pskov", "target": "leningrad", "transportType": "road" }
+  ],
+  "armies": [
+    {
+      "id": "4_panzer",
+      "name": "4. Panzergruppe",
+      "type": "armored",
+      "location": "riga",
+      "supplies": { "fuel": 3, "ammo": 3 },
+      "owner": "gray"
+    }
+  ]
+}

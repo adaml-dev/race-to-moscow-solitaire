@@ -1,0 +1,50 @@
+{
+  "sovietDeck": [
+    { 
+      "id": "infantry", 
+      "name": "Soviet Army", 
+      "type": "combat", 
+      "cost": { "ammo": 2, "fuel": 0 }, 
+      "img": "⭐️" 
+    },
+    { 
+      "id": "shock", 
+      "name": "Shock Army", 
+      "type": "combat", 
+      "cost": { "ammo": 3, "fuel": 0 }, 
+      "img": "⭐️⭐️" 
+    },
+    { 
+      "id": "mech", 
+      "name": "Mech Corps", 
+      "type": "combat", 
+      "cost": { "ammo": 2, "fuel": 1 }, 
+      "img": "⚙️" 
+    }
+  ],
+  "pursuitDeck": [
+    { 
+      "id": "mud", 
+      "name": "Mud / Błoto", 
+      "type": "event", 
+      "effect": "stop", 
+      "costToContinue": { "fuel": 1 },
+      "description": "Zatrzymaj ruch albo zapłać 1 Paliwo."
+    },
+    { 
+      "id": "supplies", 
+      "name": "Captured Supplies", 
+      "type": "event", 
+      "effect": "gain_ammo", 
+      "amount": 1,
+      "description": "Znajdujesz zapasy! +1 Amunicji."
+    },
+    { 
+      "id": "empty", 
+      "name": "Clear Path", 
+      "type": "event", 
+      "effect": "none", 
+      "description": "Droga wolna. Nic się nie dzieje."
+    }
+  ]
+}
