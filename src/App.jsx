@@ -268,7 +268,17 @@ function App() {
                         </div>
                     )}
 
-                    {node.type === 'main_supply_base' && <button className="btn btn-success btn-sm" onClick={() => store.resupplyBase(node.id)} style={{marginTop: '5px', fontSize: '0.7em', padding: '2px 5px'}}>+ Uzupełnij</button>}
+                    {node.type === 'main_supply_base' && (
+    <button 
+        className="btn btn-success btn-sm" 
+        // DODANO onMouseDown, aby zapobiec przeciąganiu mapy przy kliknięciu przycisku
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={() => store.resupplyBase(node.id)} 
+        style={{marginTop: '5px', fontSize: '0.7em', padding: '2px 5px'}}
+    >
+        + Uzupełnij
+    </button>
+)}
 
                     {activeArmy.location !== node.id && gameState === 'IDLE' && isConnected && (
                         <div style={{ marginTop: '2px' }}>

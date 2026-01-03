@@ -58,6 +58,42 @@ const useGameStore = create(persist((set, get) => ({
   },
 
   // ... (RESZTA KODU BEZ ZMIAN: awardMedal, checkVictoryCondition, checkEncirclement, triggerSovietReaction, etc.) ...
+
+  resupplyBase: (baseNodeId) => {
+      const { nodes, playerResources } = get();
+      const nodeIndex = nodes.findIndex(n => n.id === baseNodeId);
+      
+      // 1. GŁĘBOKA KOPIA ZASOBÓW GRACZA (naprawa błędu)
+      const newResources = { 
+          ...playerResources,
+          supplyStock: { ...playerResources.supplyStock } // Kopiujemy obiekt w środku!
+      };
+
+      // 2. GŁĘBOKA KOPIA WĘZŁÓW (tylko tego edytowanego)
+      const newNodes = nodes.map((node, i) => {
+          if (i === nodeIndex) {
+              return {
+                  ...node,
+                  resources: { ...node.resources } // Kopiujemy zasoby w mieście
+              };
+          }
+          return node;
+      });
+
+      // Logika: Pobierz 3 sztuki każdego surowca z bazy globalnej do miasta
+      ['fuel', 'ammo', 'food'].forEach(res => {
+          if (newResources.supplyStock[res] >= 3) {
+              newResources.supplyStock[res] -= 3;
+              newNodes[nodeIndex].resources[res] = (newNodes[nodeIndex].resources[res] || 0) + 3;
+          }
+      });
+
+      set(state => ({
+          nodes: newNodes, 
+          playerResources: newResources,
+          logs: [...state.logs, `📦 Uzupełniono zapasy w bazie ${newNodes[nodeIndex].name}.`]
+      }));
+  },
   
   awardMedal: (nodeName) => {
       set(state => ({
