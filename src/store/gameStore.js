@@ -26,25 +26,22 @@ const useGameStore = create((set, get) => ({
   
   logs: ["Gra rozpoczęta. Wybierz armię i ruszaj na Moskwę!"],
 
-
   // --- ALGORYTM OKRĄŻENIA (ENCIRCLEMENT) ---
   checkEncirclement: () => {
-      const { nodes, edges, logs } = get();
+      const { nodes, edges, logs, armies, activeArmyId } = get();
       const victoryNodes = nodes.filter(n => n.isVictory).map(n => n.id);
       
-      // Funkcja pomocnicza: Sprawdź czy węzeł 'startNodeId' ma połączenie z jakimkolwiek 'victoryNodes'
-      // używając tylko węzłów NIE kontrolowanych przez graczy (czyli neutralnych lub sowieckich)
+      const activeArmy = armies.find(a => a.id === activeArmyId) || armies[0];
+      const capturerColor = activeArmy.owner; 
+
       const hasSupplyLine = (startNodeId) => {
           let queue = [startNodeId];
           let visited = new Set([startNodeId]);
 
           while (queue.length > 0) {
               let currentId = queue.shift();
-              
-              // Jeśli dotarliśmy do źródła zaopatrzenia (Leningrad/Moskwa) -> jest bezpieczny
-              if (victoryNodes.includes(currentId)) return true;
+              if (victoryNodes.includes(currentId)) return true; 
 
-              // Znajdź sąsiadów
               const neighbors = edges
                   .filter(e => e.source === currentId || e.target === currentId)
                   .map(e => e.source === currentId ? e.target : e.source);
@@ -52,29 +49,27 @@ const useGameStore = create((set, get) => ({
               for (let neighborId of neighbors) {
                   const neighborNode = nodes.find(n => n.id === neighborId);
                   
-                  // Kluczowy warunek: Możemy iść tylko przez pola, których NIE kontrolują gracze.
-                  // Jeśli pole ma 'controller' (gray/white/brown), to blokuje zaopatrzenie.
                   if (!visited.has(neighborId) && neighborNode.controller === null) {
                       visited.add(neighborId);
                       queue.push(neighborId);
                   }
               }
           }
-          return false; // Przeszukaliśmy wszystko i nie znaleźliśmy wyjścia
+          return false;
       };
 
-      // Sprawdzamy wszystkie pola z sowieckim znacznikiem
-      let encircledNodes = [];
+      let encircledNames = [];
       const newNodes = [...nodes];
       let encirclementOccurred = false;
 
       newNodes.forEach(node => {
-          if (node.sovietMarker) {
-              // Sprawdź czy ma wyjście na świat
+          if (node.controller === null) {
               if (!hasSupplyLine(node.id)) {
-                  encircledNodes.push(node.name);
-                  node.sovietMarker = false; // Usuń znacznik
-                  // node.controller = 'gray'; // Opcjonalnie: Gracz przejmuje teren (w oryginale przejmuje, tu upraszczamy)
+                  encircledNames.push(node.name);
+                  if (node.sovietMarker) {
+                      node.sovietMarker = false;
+                  }
+                  node.controller = capturerColor;
                   encirclementOccurred = true;
               }
           }
@@ -83,11 +78,10 @@ const useGameStore = create((set, get) => ({
       if (encirclementOccurred) {
           set({ 
               nodes: newNodes,
-              logs: [...logs, `⚔️ OKRĄŻENIE! Zlikwidowano opór w: ${encircledNodes.join(', ')}`]
+              logs: [...logs, `⚔️ KOCIOŁ! Odcięto i przejęto: ${encircledNames.join(', ')}`]
           });
       }
   },
-
 
   // --- LOGIKA REORGANIZACJI ---
   triggerReorganization: () => {
@@ -122,15 +116,8 @@ const useGameStore = create((set, get) => ({
           }
       });
 
-      set({
-          edges: newEdges,
-          playerResources: newResources,
-          armies: newArmies,
-          logs: newLogs,
-          gameState: 'IDLE'
-      });
+      set({ edges: newEdges, playerResources: newResources, armies: newArmies, logs: newLogs, gameState: 'IDLE' });
   },
-
 
   // --- TRANSFER ZASOBÓW ---
   transferResource: (armyId, resourceType, direction) => {
@@ -139,22 +126,18 @@ const useGameStore = create((set, get) => ({
     const army = armies[armyIndex];
     const nodeIndex = nodes.findIndex(n => n.id === army.location);
     const node = nodes[nodeIndex];
-
     const newArmies = [...armies];
     const newNodes = [...nodes];
     const newLogs = [...logs];
-    
     const armyLoad = (army.supplies.fuel||0) + (army.supplies.ammo||0) + (army.supplies.food||0);
 
     if (direction === 'TO_ARMY') {
         if (!node.resources || (node.resources[resourceType] || 0) <= 0) return;
-        
         if (resourceType === 'food' && army.isGrounded) {
             newNodes[nodeIndex].resources.food -= 1;
             newArmies[armyIndex].isGrounded = false;
             newLogs.push(`🍞 Dostarczono żywność do ${army.name}. HALT zdjęty!`);
-        } 
-        else {
+        } else {
             if (armyLoad >= 6) {
                 set(state => ({ logs: [...state.logs, "⛔ Armia pełna! Max 6 żetonów."] }));
                 return;
@@ -162,20 +145,15 @@ const useGameStore = create((set, get) => ({
             newNodes[nodeIndex].resources[resourceType] -= 1;
             newArmies[armyIndex].supplies[resourceType] = (newArmies[armyIndex].supplies[resourceType] || 0) + 1;
         }
-    } 
-    else if (direction === 'TO_NODE') {
+    } else if (direction === 'TO_NODE') {
         if ((army.supplies[resourceType] || 0) <= 0) return;
         newArmies[armyIndex].supplies[resourceType] -= 1;
-        
         if (!newNodes[nodeIndex].resources) newNodes[nodeIndex].resources = { fuel:0, ammo:0, food:0 };
         if (!newNodes[nodeIndex].resources[resourceType]) newNodes[nodeIndex].resources[resourceType] = 0;
-        
         newNodes[nodeIndex].resources[resourceType] += 1;
     }
-
     set({ armies: newArmies, nodes: newNodes, logs: newLogs });
   },
-
 
   // --- LOGISTYKA ---
   executeTransport: (transportType, sourceId, targetId, resourcesToMove) => {
@@ -183,17 +161,13 @@ const useGameStore = create((set, get) => ({
     const newNodes = [...nodes];
     const newEdges = [...edges];
     const newResources = { ...playerResources };
-    
     const sourceNodeIndex = newNodes.findIndex(n => n.id === sourceId);
     const targetNodeIndex = newNodes.findIndex(n => n.id === targetId);
 
     Object.keys(resourcesToMove).forEach(key => {
         const amount = resourcesToMove[key];
-        if (newNodes[sourceNodeIndex].resources[key] >= amount) {
-            newNodes[sourceNodeIndex].resources[key] -= amount;
-        }
+        if (newNodes[sourceNodeIndex].resources[key] >= amount) newNodes[sourceNodeIndex].resources[key] -= amount;
     });
-
     if (!newNodes[targetNodeIndex].resources) newNodes[targetNodeIndex].resources = { fuel:0, ammo:0, food:0 };
     Object.keys(resourcesToMove).forEach(key => {
         const amount = resourcesToMove[key];
@@ -203,53 +177,37 @@ const useGameStore = create((set, get) => ({
 
     if (transportType === 'truck') newResources.trucks -= 1;
     if (transportType === 'train') newResources.trains -= 1;
-    
     newEdges[selectedEdgeIndex].placedTransport = transportType;
 
     let shouldTriggerReorg = false;
-    if (newResources.trains === 0) {
-        shouldTriggerReorg = true;
-    }
+    if (newResources.trains === 0) shouldTriggerReorg = true;
 
     set(state => ({
-        nodes: newNodes,
-        edges: newEdges,
-        playerResources: newResources,
-        gameState: 'TRANSPORT_MODE',
-        selectedEdgeIndex: null,
-        logs: [...state.logs, `🚚 Transport (${transportType}) do ${newNodes[targetNodeIndex].name} wykonany.`]
+        nodes: newNodes, edges: newEdges, playerResources: newResources, gameState: 'TRANSPORT_MODE',
+        selectedEdgeIndex: null, logs: [...state.logs, `🚚 Transport (${transportType}) do ${newNodes[targetNodeIndex].name} wykonany.`]
     }));
-
-    if (shouldTriggerReorg) {
-        get().triggerReorganization();
-    }
+    if (shouldTriggerReorg) get().triggerReorganization();
   },
-
 
   // --- RUCH ARMII ---
   moveArmy: (armyId, targetNodeId) => {
     const { armies, nodes, edges } = get();
     const armyIndex = armies.findIndex(a => a.id === armyId);
     const army = armies[armyIndex];
-    
     if (army.isGrounded) {
         set(state => ({ logs: [...state.logs, `⛔ ${army.name} jest uziemiona! Dostarcz żywność.`] }));
         return;
     }
-
     const targetNode = nodes.find(n => n.id === targetNodeId);
-
     const isConnected = edges.some(edge => 
       (edge.source === army.location && edge.target === targetNodeId) ||
       (edge.target === army.location && edge.source === targetNodeId)
     );
     if (!isConnected) return;
-
     if (army.type === 'armored' && (army.supplies.fuel || 0) < 1) {
       set(state => ({ logs: [...state.logs, `⛔ Brak paliwa na ruch!`] }));
       return;
     }
-
     let ammoCost = 0;
     if (targetNode.type === 'fortified' && targetNode.controller !== army.owner) {
         ammoCost = 1;
@@ -269,37 +227,22 @@ const useGameStore = create((set, get) => ({
     let drawnCard = null;
     let newNodes = [...nodes];
 
-    // Jeśli pole puste i nie kontrolowane -> przejmij od razu
     if (!targetNode.sovietMarker && targetNode.controller !== army.owner) {
         const nodeIndex = newNodes.findIndex(n => n.id === targetNodeId);
         newNodes[nodeIndex].controller = army.owner;
-        
-        // LOSOWANIE KARTY POŚCIGU
         drawnCard = drawCard(cardsData.pursuitDeck);
-    } 
-    else if (targetNode.sovietMarker) {
-        // LOSOWANIE KARTY SOWIECKIEJ
+    } else if (targetNode.sovietMarker) {
         drawnCard = drawCard(cardsData.sovietDeck);
     }
 
     set(state => ({
-      armies: newArmies,
-      nodes: newNodes, // Aktualizacja kontroli terenu
-      previousLocation: prevLoc,
-      activeArmyId: armyId,
-      activeCard: drawnCard,
-      gameState: drawnCard ? 'ENCOUNTER_RESOLVING' : 'IDLE',
-      logs: [...state.logs, `${army.name} wchodzi do ${targetNode.name}.`]
+      armies: newArmies, nodes: newNodes, previousLocation: prevLoc, activeArmyId: armyId, activeCard: drawnCard,
+      gameState: drawnCard ? 'ENCOUNTER_RESOLVING' : 'IDLE', logs: [...state.logs, `${army.name} wchodzi do ${targetNode.name}.`]
     }));
 
-    // Sprawdź okrążenie po ruchu (jeśli przejęliśmy teren bez walki)
-    if (!targetNode.sovietMarker) {
-        get().checkEncirclement();
-    }
+    if (!targetNode.sovietMarker) get().checkEncirclement();
   },
 
-
-  // --- ROZWIĄZYWANIE SPOTKAŃ ---
   resolveEncounter: (decision) => {
     const { activeCard, activeArmyId, armies, previousLocation, nodes } = get();
     const armyIndex = armies.findIndex(a => a.id === activeArmyId);
@@ -312,59 +255,33 @@ const useGameStore = create((set, get) => ({
             if ((army.supplies.ammo || 0) >= activeCard.cost.ammo && (army.supplies.fuel || 0) >= activeCard.cost.fuel) {
                 newArmies[armyIndex].supplies.ammo -= activeCard.cost.ammo;
                 newArmies[armyIndex].supplies.fuel -= activeCard.cost.fuel;
-                
                 const nodeIndex = newNodes.findIndex(n => n.id === army.location);
                 newNodes[nodeIndex].sovietMarker = false;
                 newNodes[nodeIndex].controller = army.owner;
-
-                set(state => ({
-                    gameState: 'IDLE',
-                    activeCard: null,
-                    armies: newArmies,
-                    nodes: newNodes,
-                    logs: [...state.logs, `⚔️ Zwycięstwo! Teren przejęty.`]
-                }));
-
-                // SPRAWDŹ OKRĄŻENIE PO WYGRANEJ WALCE
+                set(state => ({ gameState: 'IDLE', activeCard: null, armies: newArmies, nodes: newNodes, logs: [...state.logs, `⚔️ Zwycięstwo! Teren przejęty.`] }));
                 get().checkEncirclement();
-
             }
         } else if (decision === 'retreat') {
             newArmies[armyIndex].location = previousLocation;
-            set(state => ({
-                gameState: 'IDLE',
-                activeCard: null,
-                armies: newArmies,
-                logs: [...state.logs, `🏳️ Odwrót.`]
-            }));
+            set(state => ({ gameState: 'IDLE', activeCard: null, armies: newArmies, logs: [...state.logs, `🏳️ Odwrót.`] }));
         }
-    }
-    else if (activeCard.type === 'event') {
+    } else if (activeCard.type === 'event') {
         if (activeCard.id === 'mud' && decision === 'pay_fuel') {
              newArmies[armyIndex].supplies.fuel -= 1;
-             
-             // Uznajemy, że jeśli przejechaliśmy przez błoto, to kontrolujemy teren
              const nodeIndex = newNodes.findIndex(n => n.id === army.location);
              newNodes[nodeIndex].controller = army.owner;
-
              set(state => ({ gameState: 'IDLE', activeCard: null, armies: newArmies, nodes: newNodes, logs: [...state.logs, `Opłacono przejazd przez błoto.`] }));
              get().checkEncirclement();
-        } 
-        else if (activeCard.id === 'supplies') {
+        } else if (activeCard.id === 'supplies') {
             newArmies[armyIndex].supplies.ammo = (newArmies[armyIndex].supplies.ammo || 0) + 1;
-             
-             // Znalezienie zapasów = przejęcie terenu
              const nodeIndex = newNodes.findIndex(n => n.id === army.location);
              newNodes[nodeIndex].controller = army.owner;
-
              set(state => ({ gameState: 'IDLE', activeCard: null, armies: newArmies, nodes: newNodes, logs: [...state.logs, `Znaleziono amunicję.`] }));
              get().checkEncirclement();
-        }
-        else {
+        } else {
             if (activeCard.effect === 'stop' && decision === 'retreat') {
                  newArmies[armyIndex].location = previousLocation;
             } else {
-                 // Inne pozytywne zdarzenia
                  const nodeIndex = newNodes.findIndex(n => n.id === army.location);
                  newNodes[nodeIndex].controller = army.owner;
                  get().checkEncirclement();
@@ -374,33 +291,30 @@ const useGameStore = create((set, get) => ({
     }
   },
 
-
   resupplyBase: (baseNodeId) => {
       const { nodes, playerResources } = get();
       const nodeIndex = nodes.findIndex(n => n.id === baseNodeId);
       const newNodes = [...nodes];
       const newResources = { ...playerResources };
-
       ['fuel', 'ammo', 'food'].forEach(res => {
           if (newResources.supplyStock[res] >= 3) {
               newResources.supplyStock[res] -= 3;
               newNodes[nodeIndex].resources[res] = (newNodes[nodeIndex].resources[res] || 0) + 3;
           }
       });
-
-      set(state => ({
-          nodes: newNodes, 
-          playerResources: newResources,
-          logs: [...state.logs, `📦 Uzupełniono zapasy w bazie ${newNodes[nodeIndex].name}.`]
-      }));
+      set(state => ({ nodes: newNodes, playerResources: newResources, logs: [...state.logs, `📦 Uzupełniono zapasy w bazie ${newNodes[nodeIndex].name}.`] }));
   },
 
+  // --- POPRAWIONA FUNKCJA PRZEŁĄCZANIA TRYBU ---
   toggleTransportMode: () => {
     const current = get().gameState;
     if (current === 'IDLE') {
         set({ gameState: 'TRANSPORT_MODE', logs: [...get().logs, "🔧 Tryb Transportu: Wybierz połączenie."] });
     } else if (current === 'TRANSPORT_MODE') {
         set({ gameState: 'IDLE', selectedEdgeIndex: null });
+    } else if (current === 'TRANSPORT_DIALOG') {
+        // NAPRAWA: Cofnij do wyboru linii (zamiast robić nic)
+        set({ gameState: 'TRANSPORT_MODE', selectedEdgeIndex: null });
     }
   },
 
@@ -412,7 +326,6 @@ const useGameStore = create((set, get) => ({
     }
     set({ gameState: 'TRANSPORT_DIALOG', selectedEdgeIndex: edgeIndex });
   }
-
 }));
 
 export default useGameStore;

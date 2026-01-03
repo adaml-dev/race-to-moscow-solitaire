@@ -205,26 +205,56 @@ body, html, #root {
 }
 .map-control-btn:hover { background-color: var(--bg-hover); }
 
-/* WĘZŁY NA MAPIE (Poprawione wymiary) */
+/* --- WĘZŁY NA MAPIE (ULEPSZONE STYLE) --- */
 .map-node {
   background-color: var(--bg-panel);
-  border: 1px solid var(--border-color);
+  border: 2px solid var(--border-color); /* Grubsza ramka dla kontrastu */
   color: var(--text-primary);
   box-shadow: 0 4px 6px rgba(0,0,0,0.4);
-  transition: transform 0.2s;
-  /* Mniejsze, bardziej kompaktowe */
+  transition: all 0.3s ease;
   font-size: 0.9em; 
   padding: 8px;
-  width: 100px; /* Zmniejszone ze 120px */
+  width: 100px;
 }
 .map-node:hover {
     z-index: 10 !important;
-    border-color: var(--text-secondary);
+    transform: scale(1.05);
 }
 
-.map-node.base { background-color: #1e293b; border-color: #3b82f6; }
-.map-node.fort { background-color: #3f2c22; border-color: #f97316; }
-.map-node.victory { border-color: #eab308; box-shadow: 0 0 10px rgba(234, 179, 8, 0.2); }
+/* Statusy kontroli terenu */
+.map-node.controlled-gray {
+    background-color: #2e3b4e; /* Szaroniebieski */
+    border-color: #64748b;
+    box-shadow: 0 0 10px rgba(100, 116, 139, 0.2);
+}
+
+.map-node.controlled-white {
+    background-color: #475569; /* Jaśniejszy szary */
+    border-color: #e2e8f0;
+    color: #fff;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+}
+
+.map-node.soviet {
+    border-color: var(--accent-red);
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.15);
+}
+
+.map-node.neutral {
+    background-color: #18181b; /* Bardzo ciemny */
+    border-color: #3f3f46;
+    color: #71717a; /* Wygaszony tekst */
+    opacity: 0.9;
+}
+
+/* Typy specjalne */
+.map-node.base { border-width: 3px; }
+.map-node.fort { border-style: double; }
+.map-node.victory { 
+    border-color: #eab308; 
+    box-shadow: 0 0 20px rgba(234, 179, 8, 0.3); 
+    border-radius: 50%;
+}
 
 /* --- NOWE STYLE: ARMIA I PRZYCISK RUCHU --- */
 
