@@ -181,13 +181,34 @@ body, html, #root {
   transform-origin: 0 0;
 }
 
-.map-controls {
+/* NOWE NARZĘDZIA MAPY (TOOLBAR NA DOLE) */
+.map-toolbar {
   position: absolute;
   bottom: 20px;
-  left: 20px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
-  gap: 8px;
+  gap: 15px;
   z-index: 10;
+  background-color: rgba(28, 28, 33, 0.9);
+  padding: 8px 15px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.toolbar-label {
+  font-size: 0.75em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  margin-right: 5px;
+  font-weight: bold;
 }
 
 .map-control-btn {
@@ -197,18 +218,20 @@ body, html, #root {
   color: var(--text-primary);
   border: 1px solid var(--border-color);
   border-radius: 6px;
-  font-size: 1.2em;
+  font-size: 1.1em;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: background 0.2s;
 }
 .map-control-btn:hover { background-color: var(--bg-hover); }
+.map-control-btn:active { transform: translateY(1px); }
 
-/* --- WĘZŁY NA MAPIE (ULEPSZONE STYLE) --- */
+/* WĘZŁY NA MAPIE */
 .map-node {
   background-color: var(--bg-panel);
-  border: 2px solid var(--border-color); /* Grubsza ramka dla kontrastu */
+  border: 2px solid var(--border-color);
   color: var(--text-primary);
   box-shadow: 0 4px 6px rgba(0,0,0,0.4);
   transition: all 0.3s ease;
@@ -221,42 +244,14 @@ body, html, #root {
     transform: scale(1.05);
 }
 
-/* Statusy kontroli terenu */
-.map-node.controlled-gray {
-    background-color: #2e3b4e; /* Szaroniebieski */
-    border-color: #64748b;
-    box-shadow: 0 0 10px rgba(100, 116, 139, 0.2);
-}
+.map-node.controlled-gray { background-color: #2e3b4e; border-color: #64748b; box-shadow: 0 0 10px rgba(100, 116, 139, 0.2); }
+.map-node.controlled-white { background-color: #475569; border-color: #e2e8f0; color: #fff; box-shadow: 0 0 10px rgba(255, 255, 255, 0.1); }
+.map-node.soviet { border-color: var(--accent-red); box-shadow: 0 0 15px rgba(239, 68, 68, 0.15); }
+.map-node.neutral { background-color: #18181b; border-color: #3f3f46; color: #71717a; opacity: 0.9; }
 
-.map-node.controlled-white {
-    background-color: #475569; /* Jaśniejszy szary */
-    border-color: #e2e8f0;
-    color: #fff;
-    box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
-}
-
-.map-node.soviet {
-    border-color: var(--accent-red);
-    box-shadow: 0 0 15px rgba(239, 68, 68, 0.15);
-}
-
-.map-node.neutral {
-    background-color: #18181b; /* Bardzo ciemny */
-    border-color: #3f3f46;
-    color: #71717a; /* Wygaszony tekst */
-    opacity: 0.9;
-}
-
-/* Typy specjalne */
 .map-node.base { border-width: 3px; }
 .map-node.fort { border-style: double; }
-.map-node.victory { 
-    border-color: #eab308; 
-    box-shadow: 0 0 20px rgba(234, 179, 8, 0.3); 
-    border-radius: 50%;
-}
-
-/* --- NOWE STYLE: ARMIA I PRZYCISK RUCHU --- */
+.map-node.victory { border-color: #eab308; box-shadow: 0 0 20px rgba(234, 179, 8, 0.3); border-radius: 50%; }
 
 .army-token {
     background-color: var(--accent-blue);

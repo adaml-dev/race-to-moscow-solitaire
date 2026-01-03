@@ -5,22 +5,22 @@
     
     { "id": "memel", "name": "Memel", "type": "city", "controller": "gray", "x": 125, "y": 1250 },
     { "id": "liepaja", "name": "Liepaja", "type": "city", "controller": null, "sovietMarker": true, "x": 375, "y": 1125 },
-    { "id": "riga", "name": "Riga", "type": "victory", "isVictory": false, "controller": null, "sovietMarker": true, "x": 750, "y": 1000 },
+    { "id": "riga", "name": "Riga", "type": "victory", "isVictory": false, "controller": null, "sovietMarker": true, "medal": true, "x": 750, "y": 1000 },
     { "id": "siauliai", "name": "Siauliai", "type": "city", "controller": null, "sovietMarker": true, "x": 625, "y": 1375 },
     { "id": "jekabpils", "name": "Jekabpils", "type": "city", "controller": null, "sovietMarker": false, "x": 1000, "y": 1250 },
-    { "id": "pskov", "name": "Pskov", "type": "fortified", "controller": null, "sovietMarker": true, "x": 1375, "y": 875 },
+    { "id": "pskov", "name": "Pskov", "type": "fortified", "controller": null, "sovietMarker": true, "medal": true, "x": 1375, "y": 875 },
     { "id": "luga", "name": "Luga", "type": "city", "controller": null, "sovietMarker": true, "x": 1625, "y": 750 },
-    { "id": "leningrad", "name": "Leningrad", "type": "victory", "isVictory": true, "controller": null, "sovietMarker": true, "x": 2000, "y": 625 },
+    { "id": "leningrad", "name": "Leningrad", "type": "victory", "isVictory": true, "controller": null, "sovietMarker": true, "medal": true, "x": 2000, "y": 625 },
     
     { "id": "grodno", "name": "Grodno", "type": "city", "controller": null, "sovietMarker": true, "x": 625, "y": 1750 },
     { "id": "bialystok", "name": "Bialystok", "type": "city", "controller": "white", "x": 500, "y": 2000 },
     { "id": "brest", "name": "Brest", "type": "fortified", "controller": null, "sovietMarker": true, "x": 625, "y": 2250 },
-    { "id": "minsk", "name": "Minsk", "type": "fortified", "controller": null, "sovietMarker": true, "x": 1250, "y": 1875 },
+    { "id": "minsk", "name": "Minsk", "type": "fortified", "controller": null, "sovietMarker": true, "medal": true, "x": 1250, "y": 1875 },
     { "id": "slutsk", "name": "Slutsk", "type": "city", "controller": null, "sovietMarker": true, "x": 1250, "y": 2250 },
-    { "id": "vitebsk", "name": "Vitebsk", "type": "city", "controller": null, "sovietMarker": true, "x": 1625, "y": 1500 },
-    { "id": "smolensk", "name": "Smolensk", "type": "fortified", "controller": null, "sovietMarker": true, "x": 2000, "y": 1750 },
+    { "id": "vitebsk", "name": "Vitebsk", "type": "city", "controller": null, "sovietMarker": true, "medal": true, "x": 1625, "y": 1500 },
+    { "id": "smolensk", "name": "Smolensk", "type": "fortified", "controller": null, "sovietMarker": true, "medal": true, "x": 2000, "y": 1750 },
     { "id": "vyazma", "name": "Vyazma", "type": "city", "controller": null, "sovietMarker": true, "x": 2375, "y": 1625 },
-    { "id": "moscow", "name": "MOSCOW", "type": "victory", "isVictory": true, "controller": null, "sovietMarker": true, "x": 2750, "y": 1500 },
+    { "id": "moscow", "name": "MOSCOW", "type": "victory", "isVictory": true, "controller": null, "sovietMarker": true, "medal": true, "x": 2750, "y": 1500 },
     
     { "id": "daugavpils", "name": "Daugavpils", "type": "city", "controller": null, "sovietMarker": true, "x": 1125, "y": 1500 },
     { "id": "vilnius", "name": "Vilnius", "type": "city", "controller": null, "sovietMarker": false, "x": 875, "y": 1625 }
@@ -54,23 +54,7 @@
     { "source": "daugavpils", "target": "pskov", "transportType": "road" }
   ],
   "armies": [
-    {
-      "id": "4_panzer",
-      "name": "4. Panzer",
-      "type": "armored",
-      "location": "tilsit",
-      "supplies": { "fuel": 3, "ammo": 3 },
-      "owner": "gray",
-      "isGrounded": false
-    },
-    {
-      "id": "2_panzer",
-      "name": "2. Panzer",
-      "type": "armored",
-      "location": "warschau",
-      "supplies": { "fuel": 3, "ammo": 3 },
-      "owner": "white",
-      "isGrounded": false
-    }
+    { "id": "4_panzer", "name": "4. Panzer", "type": "armored", "location": "tilsit", "supplies": { "fuel": 3, "ammo": 3 }, "owner": "gray", "isGrounded": false },
+    { "id": "2_panzer", "name": "2. Panzer", "type": "armored", "location": "warschau", "supplies": { "fuel": 3, "ammo": 3 }, "owner": "white", "isGrounded": false }
   ]
 }

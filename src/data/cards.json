@@ -2,30 +2,37 @@
   "sovietDeck": [
     { 
       "id": "infantry", 
-      "name": "Soviet Army", 
+      "name": "Piechota (Soviet Army)", 
       "type": "combat", 
       "cost": { "ammo": 2, "fuel": 0 }, 
       "img": "⭐️" 
     },
     { 
       "id": "shock", 
-      "name": "Shock Army", 
+      "name": "Armia Uderzeniowa", 
       "type": "combat", 
       "cost": { "ammo": 3, "fuel": 0 }, 
       "img": "⭐️⭐️" 
     },
     { 
       "id": "mech", 
-      "name": "Mech Corps", 
+      "name": "Korpus Zmechanizowany", 
       "type": "combat", 
       "cost": { "ammo": 2, "fuel": 1 }, 
       "img": "⚙️" 
+    },
+    { 
+      "id": "human_wave", 
+      "name": "Ludzka Fala", 
+      "type": "combat", 
+      "cost": { "ammo": 4, "fuel": 0 }, 
+      "img": "🌊" 
     }
   ],
   "pursuitDeck": [
     { 
       "id": "mud", 
-      "name": "Mud / Błoto", 
+      "name": "Błoto (Rasputitsa)", 
       "type": "event", 
       "effect": "stop", 
       "costToContinue": { "fuel": 1 },
@@ -33,7 +40,7 @@
     },
     { 
       "id": "supplies", 
-      "name": "Captured Supplies", 
+      "name": "Przejęte Zapasy", 
       "type": "event", 
       "effect": "gain_ammo", 
       "amount": 1,
@@ -41,10 +48,33 @@
     },
     { 
       "id": "empty", 
-      "name": "Clear Path", 
+      "name": "Czysta Droga", 
       "type": "event", 
       "effect": "none", 
       "description": "Droga wolna. Nic się nie dzieje."
+    }
+  ],
+  "frontDeck": [
+    {
+      "id": "counter_attack",
+      "name": "Kontratak Frontalny",
+      "type": "ai_attack",
+      "target": "neighbor_neutral",
+      "description": "Sowieci zajmują miasto przed Twoją armią."
+    },
+    {
+      "id": "partisans",
+      "name": "Partyzanci",
+      "type": "ai_attack",
+      "target": "supply_line",
+      "description": "Atak na tyły! Sowieci przejmują Twoje miasto zaopatrzeniowe."
+    },
+    {
+      "id": "reinforcements",
+      "name": "Posiłki Pancerne",
+      "type": "ai_attack",
+      "target": "neighbor_any",
+      "description": "Sowieckie czołgi wchodzą do gry w pobliżu frontu."
     }
   ]
 }

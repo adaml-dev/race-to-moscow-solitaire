@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import useGameStore from './store/gameStore';
 import './App.css';
 
-const getNodeCoords = (nodes, id) => {
+const getNodeCoords = (nodes, id, spacing) => {
   const node = nodes.find(n => n.id === id);
-  return node ? { x: node.x + 50, y: node.y + 40 } : { x: 0, y: 0 };
+  return node ? { x: node.x * spacing + 50, y: node.y * spacing + 40 } : { x: 0, y: 0 };
 };
 
 const isNeighbor = (currentId, targetId, edges) => {
@@ -16,22 +16,55 @@ const isNeighbor = (currentId, targetId, edges) => {
 
 function App() {
   const store = useGameStore();
-  const { nodes, edges, armies, playerResources, logs, gameState, activeCard } = store;
+  const { nodes, edges, armies, playerResources, logs, gameState, activeCard, gameStatus, victoryMessage } = store;
+
+  const mapViewportRef = useRef(null);
 
   const [selectedArmyId, setSelectedArmyId] = useState(armies[0]?.id || null);
   const activeArmy = armies.find(a => a.id === selectedArmyId) || armies[0];
   const currentLocationNode = nodes.find(n => n.id === activeArmy.location);
 
   const [viewState, setViewState] = useState({ scale: 0.6, x: -100, y: -500 });
+  const [spacing, setSpacing] = useState(1.0); 
+
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [transportForm, setTransportForm] = useState({ fuel: 0, ammo: 0, food: 0, direction: 'source-to-target', transportType: 'truck' });
 
+  // --- NAPRAWA LOGIKI CIĘŻARÓWEK ---
+  // Ten efekt uruchamia się za każdym razem, gdy wchodzimy w tryb dialogu transportowego
+  useEffect(() => {
+      if (gameState === 'TRANSPORT_DIALOG') {
+          // Jeśli nie mamy ciężarówek, automatycznie przełącz na pociąg
+          if (playerResources.trucks <= 0 && playerResources.trains > 0) {
+              setTransportForm(prev => ({ ...prev, transportType: 'train' }));
+          } 
+          // Jeśli mamy ciężarówki, domyślnie ciężarówka
+          else if (playerResources.trucks > 0) {
+              setTransportForm(prev => ({ ...prev, transportType: 'truck' }));
+          }
+      }
+  }, [gameState, playerResources.trucks, playerResources.trains]);
+
+
+  const updateZoom = (delta) => {
+    if (!mapViewportRef.current) return;
+    const newScale = Math.min(Math.max(0.1, viewState.scale + delta), 4.0);
+    if (newScale === viewState.scale) return;
+    const rect = mapViewportRef.current.getBoundingClientRect();
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    const worldX = (centerX - viewState.x) / viewState.scale;
+    const worldY = (centerY - viewState.y) / viewState.scale;
+    const newX = centerX - (worldX * newScale);
+    const newY = centerY - (worldY * newScale);
+    setViewState({ scale: newScale, x: newX, y: newY });
+  };
+
   const handleWheel = (e) => {
     e.preventDefault();
-    const scaleAmount = -e.deltaY * 0.001;
-    const newScale = Math.min(Math.max(0.2, viewState.scale + scaleAmount), 3);
-    setViewState(prev => ({ ...prev, scale: newScale }));
+    const scaleAmount = -e.deltaY * 0.001; 
+    updateZoom(scaleAmount * 2);
   };
 
   const handleMouseDown = (e) => {
@@ -48,7 +81,22 @@ function App() {
   };
 
   const handleMouseUp = () => setIsDragging(false);
-  const resetView = () => setViewState({ scale: 0.6, x: -100, y: -500 });
+  
+  const resetView = () => {
+      setViewState({ scale: 0.6, x: -100, y: -500 });
+      setSpacing(1.0);
+  };
+
+  if (gameStatus === 'VICTORY') {
+      return (
+          <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#131316', color: 'white', flexDirection: 'column'}}>
+              <h1 style={{color: '#eab308', fontSize: '4em'}}>ZWYCIĘSTWO!</h1>
+              <p style={{fontSize: '1.5em'}}>{victoryMessage}</p>
+              <div style={{fontSize: '2em', margin: '20px'}}>🎖️ Zdobyte medale: {playerResources.medals}</div>
+              <button className="btn btn-primary" onClick={() => window.location.reload()}>ZAGRAJ PONOWNIE</button>
+          </div>
+      );
+  }
 
   const renderArmyStatus = () => (
     <div className="panel-section">
@@ -100,24 +148,47 @@ function App() {
         const toNode = transportForm.direction === 'source-to-target' ? targetNode : sourceNode;
         const capacity = transportForm.transportType === 'truck' ? 4 : 6;
         const currentLoad = transportForm.fuel + transportForm.ammo + transportForm.food;
-        const handleConfirm = () => { store.executeTransport(transportForm.transportType, fromNode.id, toNode.id, transportForm); setTransportForm({ fuel: 0, ammo: 0, food: 0, direction: 'source-to-target', transportType: 'truck' }); };
+
+        // Walidacja: Czy stać nas na ten typ transportu?
+        const canAffordTransport = (transportForm.transportType === 'truck' && playerResources.trucks > 0) ||
+                                   (transportForm.transportType === 'train' && playerResources.trains > 0);
+
+        const handleConfirm = () => { 
+            store.executeTransport(transportForm.transportType, fromNode.id, toNode.id, transportForm); 
+            // Reset jest teraz obsługiwany przez useEffect przy kolejnym otwarciu, ale tutaj resetujemy surowce
+            setTransportForm(prev => ({ ...prev, fuel: 0, ammo: 0, food: 0 })); 
+        };
         const increment = (res) => { if (currentLoad < capacity && (fromNode.resources?.[res] || 0) > transportForm[res]) setTransportForm({...transportForm, [res]: transportForm[res] + 1}); };
+        
         return (
             <div className="panel-section">
                 <div className="panel-title">Logistyka</div>
                 <label style={{fontSize:'0.85em', color:'#a1a1aa'}}>Pojazd:</label>
-                <select className="select-dark" value={transportForm.transportType} onChange={e => setTransportForm({...transportForm, transportType: e.target.value})}><option value="truck" disabled={playerResources.trucks < 1}>Ciężarówka ({playerResources.trucks})</option>{edge.transportType === 'rail' && <option value="train" disabled={playerResources.trains < 1}>Pociąg ({playerResources.trains})</option>}</select>
+                <select className="select-dark" value={transportForm.transportType} onChange={e => setTransportForm({...transportForm, transportType: e.target.value})}>
+                    <option value="truck" disabled={playerResources.trucks < 1}>Ciężarówka ({playerResources.trucks})</option>
+                    {edge.transportType === 'rail' && <option value="train" disabled={playerResources.trains < 1}>Pociąg ({playerResources.trains})</option>}
+                </select>
                 <div style={{display:'flex', gap:'5px', margin:'15px 0'}}><button className={`btn btn-sm ${transportForm.direction === 'target-to-source' ? 'btn-primary' : ''}`} onClick={() => setTransportForm({...transportForm, direction: 'target-to-source', fuel:0, ammo:0, food:0})}>{sourceNode.name}</button><span style={{alignSelf:'center'}}>➡</span><button className={`btn btn-sm ${transportForm.direction === 'source-to-target' ? 'btn-primary' : ''}`} onClick={() => setTransportForm({...transportForm, direction: 'source-to-target', fuel:0, ammo:0, food:0})}>{targetNode.name}</button></div>
                 <p style={{fontSize:'0.9em'}}>W magazynie ({fromNode.name}): ⛽{(fromNode.resources?.fuel||0)} 💣{(fromNode.resources?.ammo||0)} 🍞{(fromNode.resources?.food||0)}</p>
                 {['fuel', 'ammo', 'food'].map(res => (<div key={res} className="resource-row"><span>{res === 'fuel' ? '⛽' : (res === 'ammo' ? '💣' : '🍞')}</span><div><button className="btn btn-sm" onClick={() => setTransportForm({...transportForm, [res]: Math.max(0, transportForm[res]-1)})}>-</button><span style={{margin: '0 10px', fontWeight: 'bold'}}>{transportForm[res]}</span><button className="btn btn-sm" onClick={() => increment(res)}>+</button></div></div>))}
                 <div style={{textAlign:'center', margin:'10px 0', fontSize:'0.9em', color: currentLoad === capacity ? 'orange' : 'inherit'}}>Ładunek: {currentLoad} / {capacity}</div>
-                <button className="btn btn-success" onClick={handleConfirm} disabled={currentLoad === 0}>WYŚLIJ</button> <button className="btn btn-danger" onClick={() => store.toggleTransportMode()}>ANULUJ</button>
+                
+                <button 
+                    className="btn btn-success" 
+                    onClick={handleConfirm} 
+                    disabled={currentLoad === 0 || !canAffordTransport}
+                    title={!canAffordTransport ? "Brak pojazdów tego typu!" : "Wyślij"}
+                >
+                    WYŚLIJ
+                </button> 
+                <button className="btn btn-danger" onClick={() => store.toggleTransportMode()}>ANULUJ</button>
             </div>
         );
     }
     return (
         <div className="panel-section">
             <div className="panel-title">Zasoby Globalne</div>
+            <div className="resource-row"><span>🎖️ Medale</span> <strong style={{color: '#eab308'}}>{playerResources.medals}</strong></div>
             <div className="resource-row"><span>🚚 Ciężarówki</span> <strong>{playerResources.trucks}</strong></div>
             <div className="resource-row"><span>🚂 Pociągi</span> <strong>{playerResources.trains}</strong></div>
             <hr style={{borderColor: 'var(--border-color)', margin: '15px 0'}}/>
@@ -139,12 +210,20 @@ function App() {
         </div>
       </aside>
 
-      <main className="map-viewport" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onWheel={handleWheel}>
+      <main 
+        className="map-viewport"
+        ref={mapViewportRef}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onWheel={handleWheel}
+      >
         <div className="map-content" style={{transform: `translate(${viewState.x}px, ${viewState.y}px) scale(${viewState.scale})`}}>
-          <svg style={{ position: 'absolute', width: '4000px', height: '4000px', pointerEvents: 'none', zIndex: 0 }}>
+          <svg style={{ position: 'absolute', width: '5000px', height: '5000px', pointerEvents: 'none', zIndex: 0 }}>
             {edges.map((edge, index) => {
-              const start = getNodeCoords(nodes, edge.source);
-              const end = getNodeCoords(nodes, edge.target);
+              const start = getNodeCoords(nodes, edge.source, spacing);
+              const end = getNodeCoords(nodes, edge.target, spacing);
               const isRail = edge.transportType === 'rail';
               const lineColor = edge.placedTransport ? (edge.placedTransport === 'train' ? '#000' : '#ea580c') : (isRail ? '#71717a' : '#52525b');
               return (
@@ -163,24 +242,29 @@ function App() {
             if(node.type === 'fortified') typeClass = "fort";
             if(node.isVictory) typeClass = "victory";
             
-            // --- LOGIKA STYLIZACJI KONTROLI ---
-            let controlClass = "neutral"; // Domyślnie neutralny (ciemny)
-            if (node.sovietMarker) controlClass = "soviet"; // Sowiecki (czerwony)
+            let controlClass = "neutral";
+            if (node.sovietMarker) controlClass = "soviet";
             else if (node.controller === 'gray') controlClass = "controlled-gray";
             else if (node.controller === 'white') controlClass = "controlled-white";
             else if (node.controller === 'brown') controlClass = "controlled-brown";
 
             const isConnected = isNeighbor(activeArmy.location, node.id, edges);
             const armiesHere = armies.filter(a => a.location === node.id);
+            const finalX = node.x * spacing;
+            const finalY = node.y * spacing;
 
             return (
                 <div key={node.id} 
                     className={`map-node ${typeClass} ${controlClass}`}
-                    style={{ position: 'absolute', left: `${node.x}px`, top: `${node.y}px`, borderRadius: node.type === 'victory' ? '50%' : '8px', textAlign: 'center', zIndex: 1}}
+                    style={{ position: 'absolute', left: `${finalX}px`, top: `${finalY}px`, borderRadius: node.type === 'victory' ? '50%' : '8px', textAlign: 'center', zIndex: 1}}
                     onMouseDown={(e) => e.stopPropagation()}
                 >
                     <strong style={{ display: 'block', marginBottom: '3px' }}>{node.name}</strong>
-                    {node.isVictory && <span>⭐</span>}
+                    
+                    {/* NAPRAWA: Usunięto "!node.sovietMarker", żeby medal/gwiazda były zawsze widoczne */}
+                    {node.medal && <span style={{fontSize: '1.2em', marginRight: '5px'}} title="Cel Medalowy">🎖️</span>}
+                    {node.isVictory && <span style={{fontSize: '1.2em'}} title="Cel Główny">⭐</span>}
+                    
                     {node.type === 'fortified' && <span>🏰</span>}
                     {node.sovietMarker && <span style={{color: 'var(--accent-red)', fontSize: '1.2em', textShadow: '0 0 5px red'}}>☭</span>}
                     
@@ -209,7 +293,23 @@ function App() {
             );
           })}
         </div>
-        <div className="map-controls"><button className="map-control-btn" onClick={() => setViewState(p => ({...p, scale: p.scale + 0.2}))}>+</button><button className="map-control-btn" onClick={() => setViewState(p => ({...p, scale: Math.max(0.2, p.scale - 0.2)}))}>-</button><button className="map-control-btn" onClick={resetView}>⟲</button></div>
+
+        <div className="map-toolbar">
+            <div className="toolbar-group">
+                <span className="toolbar-label">Zoom:</span>
+                <button className="map-control-btn" onClick={() => updateZoom(0.2)}>+</button>
+                <button className="map-control-btn" onClick={() => updateZoom(-0.2)}>-</button>
+            </div>
+            <div style={{width:'1px', background:'var(--border-color)'}}></div>
+            <div className="toolbar-group">
+                <span className="toolbar-label">Odległość:</span>
+                <button className="map-control-btn" onClick={() => setSpacing(s => Math.min(2.0, s + 0.1))}>↔️+</button>
+                <button className="map-control-btn" onClick={() => setSpacing(s => Math.max(0.5, s - 0.1))}>↔️-</button>
+            </div>
+            <div style={{width:'1px', background:'var(--border-color)'}}></div>
+            <button className="map-control-btn" onClick={resetView} title="Resetuj widok">⟲</button>
+        </div>
+
       </main>
     </div>
   );
