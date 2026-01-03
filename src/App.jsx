@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import useGameStore from './store/gameStore';
 import './App.css';
 
+// Aktualizacja offsetu dla kafelków o szerokości 100px
 const getNodeCoords = (nodes, id) => {
   const node = nodes.find(n => n.id === id);
-  return node ? { x: node.x + 60, y: node.y + 50 } : { x: 0, y: 0 };
+  // Kafelek ma szerokość ok. 100px i wysokość zależną od treści.
+  return node ? { x: node.x + 50, y: node.y + 40 } : { x: 0, y: 0 };
 };
 
-// Funkcja sprawdzająca czy dwa węzły są połączone
 const isNeighbor = (currentId, targetId, edges) => {
     return edges.some(edge => 
         (edge.source === currentId && edge.target === targetId) ||
@@ -18,25 +19,30 @@ const isNeighbor = (currentId, targetId, edges) => {
 function App() {
   const store = useGameStore();
   const { nodes, edges, armies, playerResources, logs, gameState, activeCard } = store;
-  const activeArmy = armies[0];
-  const currentLocationNode = nodes.find(n => n.id === activeArmy.location);
 
   // --- STATE DLA UI ---
-  const [viewState, setViewState] = useState({ scale: 1, x: 0, y: 0 });
+  // Dodajemy stan wybranej armii (domyślnie pierwsza)
+  const [selectedArmyId, setSelectedArmyId] = useState(armies[0]?.id || null);
+  
+  // Znajdź obiekt aktywnej armii na podstawie ID
+  const activeArmy = armies.find(a => a.id === selectedArmyId) || armies[0];
+  const currentLocationNode = nodes.find(n => n.id === activeArmy.location);
+
+  const [viewState, setViewState] = useState({ scale: 0.6, x: -100, y: -500 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [transportForm, setTransportForm] = useState({ fuel: 0, ammo: 0, food: 0, direction: 'source-to-target', transportType: 'truck' });
 
-  // --- OBSŁUGA MAPY ---
+  // --- OBSŁUGA UI ---
   const handleWheel = (e) => {
     e.preventDefault();
     const scaleAmount = -e.deltaY * 0.001;
-    const newScale = Math.min(Math.max(0.5, viewState.scale + scaleAmount), 3);
+    const newScale = Math.min(Math.max(0.2, viewState.scale + scaleAmount), 3);
     setViewState(prev => ({ ...prev, scale: newScale }));
   };
 
   const handleMouseDown = (e) => {
-    if (e.target.tagName !== 'BUTTON') {
+    if (e.target.tagName !== 'BUTTON' && !e.target.classList.contains('army-token')) {
       setIsDragging(true);
       setDragStart({ x: e.clientX - viewState.x, y: e.clientY - viewState.y });
     }
@@ -49,14 +55,29 @@ function App() {
   };
 
   const handleMouseUp = () => setIsDragging(false);
-  const resetView = () => setViewState({ scale: 1, x: 0, y: 0 });
+  const resetView = () => setViewState({ scale: 0.6, x: -100, y: -500 });
 
-
-  // --- KOMPONENTY WEWNĘTRZNE SIDEBARA ---
+  // --- KOMPONENTY SIDEBARA ---
 
   const renderArmyStatus = () => (
     <div className="panel-section">
-      <div className="panel-title">Status: {activeArmy.name}</div>
+      <div className="panel-title">WYBIERZ DO DOWODZENIA:</div>
+      
+      {/* Przełącznik armii w sidebarze */}
+      <div style={{display: 'flex', gap: '5px', marginBottom: '15px', flexWrap: 'wrap'}}>
+        {armies.map(army => (
+            <button 
+                key={army.id}
+                className={`btn btn-sm ${selectedArmyId === army.id ? 'btn-primary' : ''}`}
+                style={{flex: 1, border: selectedArmyId === army.id ? '1px solid white' : '1px solid #444'}}
+                onClick={() => setSelectedArmyId(army.id)}
+            >
+                {army.name}
+            </button>
+        ))}
+      </div>
+
+      <div className="panel-title" style={{color: 'var(--accent-blue)'}}>Aktywna: {activeArmy.name}</div>
       
       {activeArmy.isGrounded && (
         <div style={{
@@ -189,10 +210,8 @@ function App() {
     );
   };
 
-
   return (
     <div className="app-container">
-      {/* --- SIDEBAR --- */}
       <aside className="sidebar">
         <div className="sidebar-header">RACE TO MOSCOW</div>
         <div className="sidebar-scroll-content">
@@ -209,7 +228,6 @@ function App() {
         </div>
       </aside>
 
-      {/* --- MAPA --- */}
       <main 
         className="map-viewport"
         onMouseDown={handleMouseDown}
@@ -220,8 +238,7 @@ function App() {
       >
         <div className="map-content" style={{transform: `translate(${viewState.x}px, ${viewState.y}px) scale(${viewState.scale})`}}>
           
-          {/* SVG WARSTWA (LINIE) */}
-          <svg style={{ position: 'absolute', width: '2000px', height: '2000px', pointerEvents: 'none', zIndex: 0 }}>
+          <svg style={{ position: 'absolute', width: '4000px', height: '4000px', pointerEvents: 'none', zIndex: 0 }}>
             {edges.map((edge, index) => {
               const start = getNodeCoords(nodes, edge.source);
               const end = getNodeCoords(nodes, edge.target);
@@ -250,33 +267,34 @@ function App() {
             })}
           </svg>
 
-          {/* MIASTA */}
           {nodes.map(node => {
             let typeClass = "";
             if(node.type === 'main_supply_base') typeClass = "base";
             if(node.type === 'fortified') typeClass = "fort";
             if(node.isVictory) typeClass = "victory";
             
-            // SPRAWDZANIE POŁĄCZENIA
             const isConnected = isNeighbor(activeArmy.location, node.id, edges);
+            
+            // FILTRUJEMY ARMIE W TYM WĘŹLE (Zamiast sprawdzać tylko activeArmy)
+            const armiesHere = armies.filter(a => a.location === node.id);
 
             return (
                 <div key={node.id} 
                     className={`map-node ${typeClass}`}
                     style={{ 
-                        position: 'absolute', left: `${node.x}px`, top: `${node.y}px`, width: '120px', 
+                        position: 'absolute', left: `${node.x}px`, top: `${node.y}px`, 
                         borderRadius: node.type === 'victory' ? '50%' : '8px', 
-                        textAlign: 'center', padding: '10px', zIndex: 1
+                        textAlign: 'center', zIndex: 1
                     }}
                     onMouseDown={(e) => e.stopPropagation()}
                 >
-                    <strong style={{ display: 'block', marginBottom: '5px' }}>{node.name}</strong>
+                    <strong style={{ display: 'block', marginBottom: '3px' }}>{node.name}</strong>
                     {node.isVictory && <span>⭐</span>}
                     {node.type === 'fortified' && <span>🏰</span>}
                     {node.sovietMarker && <span style={{color: 'var(--accent-red)', fontSize: '1.2em', textShadow: '0 0 5px red'}}>☭</span>}
                     
                     {(node.resources?.fuel > 0 || node.resources?.ammo > 0 || node.resources?.food > 0) && (
-                        <div style={{fontSize: '0.8em', backgroundColor: 'var(--bg-element)', borderRadius: '4px', padding: '4px', marginTop: '5px', border: '1px solid var(--accent-orange)'}}>
+                        <div style={{fontSize: '0.75em', backgroundColor: 'var(--bg-element)', borderRadius: '4px', padding: '2px', marginTop: '2px', border: '1px solid var(--accent-orange)'}}>
                             {node.resources.fuel > 0 && <span>⛽{node.resources.fuel} </span>}
                             {node.resources.ammo > 0 && <span>💣{node.resources.ammo} </span>}
                             {node.resources.food > 0 && <span>🍞{node.resources.food} </span>}
@@ -284,12 +302,12 @@ function App() {
                     )}
 
                     {node.type === 'main_supply_base' && (
-                        <button className="btn btn-success btn-sm" onClick={() => store.resupplyBase(node.id)} style={{marginTop: '5px'}}>+ Uzupełnij</button>
+                        <button className="btn btn-success btn-sm" onClick={() => store.resupplyBase(node.id)} style={{marginTop: '5px', fontSize: '0.7em', padding: '2px 5px'}}>+ Uzupełnij</button>
                     )}
 
-                    {/* RENDEROWANIE PRZYCISKU RUCHU TYLKO NA SĄSIADACH */}
+                    {/* PRZYCISK RUCHU DLA AKTYWNEJ ARMII */}
                     {activeArmy.location !== node.id && gameState === 'IDLE' && isConnected && (
-                        <div style={{ marginTop: '5px' }}>
+                        <div style={{ marginTop: '2px' }}>
                             <button 
                                 className="btn btn-move"
                                 onClick={() => store.moveArmy(activeArmy.id, node.id)} 
@@ -301,12 +319,25 @@ function App() {
                         </div>
                     )}
 
-                    {/* RENDEROWANIE ŻETONU ARMII */}
-                    {activeArmy.location === node.id && (
-                        <div className={`army-token ${activeArmy.isGrounded ? 'halt' : ''}`}>
-                            {activeArmy.name}
+                    {/* RENDEROWANIE WSZYSTKICH ARMII W TYM POLU */}
+                    {armiesHere.map(army => (
+                        <div 
+                            key={army.id}
+                            className={`army-token ${army.isGrounded ? 'halt' : ''}`}
+                            style={{
+                                cursor: 'pointer',
+                                border: selectedArmyId === army.id ? '2px solid white' : '1px solid rgba(255,255,255,0.2)',
+                                transform: selectedArmyId === army.id ? 'scale(1.05)' : 'scale(1)'
+                            }}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedArmyId(army.id); // Przełączenie dowodzenia
+                            }}
+                            title="Kliknij, aby dowodzić tą armią"
+                        >
+                            {army.name}
                         </div>
-                    )}
+                    ))}
                 </div>
             );
           })}
@@ -314,7 +345,7 @@ function App() {
 
         <div className="map-controls">
           <button className="map-control-btn" onClick={() => setViewState(p => ({...p, scale: p.scale + 0.2}))}>+</button>
-          <button className="map-control-btn" onClick={() => setViewState(p => ({...p, scale: Math.max(0.5, p.scale - 0.2)}))}>-</button>
+          <button className="map-control-btn" onClick={() => setViewState(p => ({...p, scale: Math.max(0.2, p.scale - 0.2)}))}>-</button>
           <button className="map-control-btn" onClick={resetView}>⟲</button>
         </div>
       </main>
