@@ -54,6 +54,7 @@ const useGameStore = create(persist((set, get) => ({
   activeArmyId: null,
   previousLocation: null,
   selectedEdgeIndex: null,
+  recentlyCaptured: [],
   
   logs: ["Gra rozpoczęta. Cel: Moskwa i Leningrad."],
 
@@ -73,6 +74,7 @@ const useGameStore = create(persist((set, get) => ({
   // --- AKCJA RESETU GRY ---
   // Zresetuj mechanikę, ale ZACHOWAJ ustawienia widoku (nie nadpisujemy viewState/spacing)
   initializeSolitaireGame: (armyGroup) => {
+    console.log('initializeSolitaireGame', armyGroup);
     const newNodes = initialMap.nodes.map(node => {
       if (node.owner && node.owner !== armyGroup) {
         return { ...node, controller: node.owner }; // Block areas of other army groups
@@ -348,8 +350,17 @@ const useGameStore = create(persist((set, get) => ({
   },
 
   executeTransport: (transportType, sourceId, targetId, resourcesToMove) => {
-    const { edges, nodes, selectedEdgeIndex, playerResources } = get();
+    const { edges, nodes, selectedEdgeIndex, playerResources, spendAction } = get();
     const edge = edges[selectedEdgeIndex];
+
+    if (!spendAction()) {
+      set(state => ({
+        logs: [...state.logs, "⛔ Brak akcji do wykonania transportu!"],
+        gameState: 'IDLE',
+        selectedEdgeIndex: null,
+      }));
+      return;
+    }
 
     if (transportType === 'truck' && playerResources.trucks <= 0) {
         set(state => ({ logs: [...state.logs, "⛔ BŁĄD: Brak ciężarówek!"] }));
@@ -359,8 +370,12 @@ const useGameStore = create(persist((set, get) => ({
         set(state => ({ logs: [...state.logs, "⛔ BŁĄD: Brak pociągów!"] }));
         return;
     }
-    if (transportType === 'train' && edge.transportType !== 'rail') {
-        set(state => ({ logs: [...state.logs, "⛔ BŁĄD: Pociąg nie może jechać po drodze!"] }));
+
+    const sourceNode = nodes.find(n => n.id === sourceId);
+    const targetNode = nodes.find(n => n.id === targetId);
+
+    if (transportType === 'train' && (!sourceNode.isRail || !targetNode.isRail)) {
+        set(state => ({ logs: [...state.logs, "⛔ BŁĄD: Pociąg może poruszać się tylko między polami z torami kolejowymi!"] }));
         return;
     }
 
@@ -475,6 +490,7 @@ const useGameStore = create(persist((set, get) => ({
         drawnCard = firstCard;
         newSolitaireState.pursuitDeck = restOfDeck;
         if (wasMedal) get().awardMedal(targetNode.name);
+        set(state => ({ recentlyCaptured: [...state.recentlyCaptured, targetNodeId] }));
     } else if (targetNode.sovietMarker) {
         const [firstCard, ...restOfDeck] = newSolitaireState.sovietDeck;
         drawnCard = firstCard;
@@ -610,7 +626,7 @@ const useGameStore = create(persist((set, get) => ({
                 node.controller = army.owner;
                 if (node.medal) get().awardMedal(node.name);
 
-                set(state => ({ activeCard: null, armies: newArmies, nodes: newNodes, logs: [...state.logs, `⚔️ Zwycięstwo! Teren przejęty.`] }));
+                set(state => ({ activeCard: null, armies: newArmies, nodes: newNodes, logs: [...state.logs, `⚔️ Zwycięstwo! Teren przejęty.`], recentlyCaptured: [...state.recentlyCaptured, army.location] }));
                 get().checkEncirclement();
                 get().checkVictoryCondition(army.location);
 
@@ -736,13 +752,16 @@ const useGameStore = create(persist((set, get) => ({
 
   endTurn: () => {
     const { nodes, edges, solitaire, sovietReaction } = get();
+    // Helper: Check if area is controlled by any German player (not Soviet)
+    const isPlayerControlled = (controller) => controller && controller !== null && ['gray', 'white', 'brown'].includes(controller);
+    
     const railheadCandidates = nodes.filter(node => 
-      node.controller === solitaire.chosenArmyGroup && 
+      isPlayerControlled(node.controller) && 
       !node.isRail && 
       edges.some(e => {
         const otherId = e.source === node.id ? e.target : e.source;
         const otherNode = nodes.find(n => n.id === otherId);
-        return otherNode && otherNode.isRail;
+        return otherNode && isPlayerControlled(otherNode.controller) && otherNode.isRail;
       })
     );
 
@@ -803,6 +822,8 @@ const useGameStore = create(persist((set, get) => ({
         const validTargets = newNodes.filter(n => {
             // Must be player-controlled
             if (n.controller !== chosenArmyGroup) return false;
+
+            if (get().recentlyCaptured.includes(n.id)) return false; // Don't counter-attack recently captured cities
 
             // Cannot be in or adjacent to a starting area
             if (startingAreaIDs.has(n.id)) return false;
@@ -877,7 +898,7 @@ const useGameStore = create(persist((set, get) => ({
     }
 
     const newSolitaireState = { ...solitaire, turn: solitaire.turn + 1, actionsLeft: 2, sovietMarkerPool: newSovietMarkerPool, playedAxisAuxiliaries: false };
-    set({ nodes: newNodes, logs: newLogs, solitaire: newSolitaireState });
+    set({ nodes: newNodes, logs: newLogs, solitaire: newSolitaireState, recentlyCaptured: [] });
   },
 
   playCardFromHand: (cardId) => {
@@ -967,17 +988,29 @@ const useGameStore = create(persist((set, get) => ({
   },
 
   toggleTransportMode: () => {
-    const { gameState, spendAction } = get();
+    const { gameState } = get();
     if (gameState === 'TRANSPORT_MODE') {
       set({ gameState: 'IDLE', selectedEdgeIndex: null });
     } else {
-      if (spendAction()) {
-        set({ gameState: 'TRANSPORT_MODE', selectedEdgeIndex: null });
-      }
+      set({ gameState: 'TRANSPORT_MODE', selectedEdgeIndex: null });
     }
   },
 
   selectTransportEdge: (edgeIndex) => {
+    const { edges, nodes } = get();
+    const edge = edges[edgeIndex];
+    const sourceNode = nodes.find(n => n.id === edge.source);
+    const targetNode = nodes.find(n => n.id === edge.target);
+
+    // Helper: Check if area is controlled by any German player (not Soviet)
+    const isPlayerControlled = (controller) => controller && controller !== null && ['gray', 'white', 'brown'].includes(controller);
+
+    if (!isPlayerControlled(sourceNode.controller) || !isPlayerControlled(targetNode.controller)) {
+      set(state => ({
+        logs: [...state.logs, "⛔ BŁĄD: Możesz transportować tylko między obszarami, które kontrolujesz!"]
+      }));
+      return;
+    }
     set({ selectedEdgeIndex: edgeIndex, gameState: 'TRANSPORT_DIALOG' });
   },
 

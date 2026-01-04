@@ -3,13 +3,14 @@ import useGameStore from '../store/gameStore';
 import { MedalIcon, TruckIcon, TrainIcon, FuelIcon, AmmoIcon, FoodIcon } from './Icons';
 
 const TopBar = () => {
-  const { playerResources } = useGameStore();
+  const { playerResources, solitaire } = useGameStore();
 
   return (
     <div className="top-bar">
       <div className="top-bar-section">
         <span className="top-bar-label">Zasoby Globalne:</span>
         <div className="resource-item">
+            <span style={{ marginRight: '10px', color: solitaire.chosenArmyGroup, fontWeight: 'bold', textTransform: 'uppercase' }}>{solitaire.chosenArmyGroup}</span>
           <MedalIcon size={18} color="#eab308" />
           <span>Medale:</span>
           <strong>{playerResources.medals}</strong>

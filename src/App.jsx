@@ -276,7 +276,20 @@ const renderActionContext = () => {
             <div className="panel-section">
                 <div className="panel-title">Logistyka</div>
                 <label style={{fontSize:'0.85em', color:'#a1a1aa'}}>Pojazd:</label>
-                <select className="select-dark" value={transportForm.transportType} onChange={e => setTransportForm({...transportForm, transportType: e.target.value})}><option value="truck" disabled={playerResources.trucks < 1}>Ciężarówka ({playerResources.trucks})</option>{edge.transportType === 'rail' && <option value="train" disabled={playerResources.trains < 1}>Pociąg ({playerResources.trains})</option>}</select>
+                <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px', margin: '5px 0'}}>
+                  <button 
+                    className={`btn ${transportForm.transportType === 'truck' ? 'btn-primary' : ''}`} 
+                    onClick={() => setTransportForm({...transportForm, transportType: 'truck'})} 
+                    disabled={playerResources.trucks < 1}>
+                      <TruckIcon /> Ciężarówka ({playerResources.trucks})
+                  </button>
+                  <button 
+                    className={`btn ${transportForm.transportType === 'train' ? 'btn-primary' : ''}`} 
+                    onClick={() => setTransportForm({...transportForm, transportType: 'train'})} 
+                    disabled={playerResources.trains < 1 || !sourceNode.isRail || !targetNode.isRail}>
+                      <TrainIcon /> Pociąg ({playerResources.trains})
+                  </button>
+                </div>
                 <div style={{display:'flex', gap:'5px', margin:'15px 0'}}><button className={`btn btn-sm ${transportForm.direction === 'target-to-source' ? 'btn-primary' : ''}`} onClick={() => setTransportForm({...transportForm, direction: 'target-to-source', fuel:0, ammo:0, food:0})}>{sourceNode.name}</button><span style={{alignSelf:'center'}}>➡</span><button className={`btn btn-sm ${transportForm.direction === 'source-to-target' ? 'btn-primary' : ''}`} onClick={() => setTransportForm({...transportForm, direction: 'source-to-target', fuel:0, ammo:0, food:0})}>{targetNode.name}</button></div>
                 <p style={{fontSize:'0.9em', display: 'flex', gap: '12px', justifyContent: 'center'}}>
                   <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}><FuelIcon size={14} />{(fromNode.resources?.fuel||0)}</span>
@@ -311,15 +324,16 @@ const renderActionContext = () => {
                 <div className="panel-title">Postęp Kolei</div>
                 <p>Wybierz jeden z podświetlonych obszarów, aby ulepszyć go do połączenia kolejowego.</p>
                 <ul>
-                  {nodes.filter(node => 
-                    node.controller === store.solitaire.chosenArmyGroup && 
+                  {nodes.filter(node => {
+                    const isPlayerControlled = (controller) => controller && controller !== null && ['gray', 'white', 'brown'].includes(controller);
+                    return isPlayerControlled(node.controller) && 
                     !node.isRail && 
                     edges.some(e => {
                       const otherId = e.source === node.id ? e.target : e.source;
                       const otherNode = nodes.find(n => n.id === otherId);
-                      return otherNode && otherNode.isRail;
-                    })
-                  ).map(node => <li key={node.id}><button className='btn btn-link' onClick={() => store.advanceRailhead(node.id)}>{node.name}</button></li>)}
+                      return otherNode && isPlayerControlled(otherNode.controller) && otherNode.isRail;
+                    });
+                  }).map(node => <li key={node.id}><button className='btn btn-link' onClick={() => store.advanceRailhead(node.id)}>{node.name}</button></li>)}
                 </ul>
                 <button className="btn btn-secondary" onClick={() => store.sovietReaction()}>Pomiń</button>
               </div>
@@ -342,43 +356,46 @@ const renderActionContext = () => {
             {edges.map((edge, index) => {
               const start = getNodeCoords(nodes, edge.source, spacing);
               const end = getNodeCoords(nodes, edge.target, spacing);
-              const isRail = edge.transportType === 'rail';
-              const lineColor = edge.placedTransport ? (edge.placedTransport === 'train' ? '#8b8b8b' : '#ea580c') : (isRail ? '#71717a' : '#52525b');
               
-              // Calculate control point for quadratic Bezier curve (adds organic feel)
-              const midX = (start.x + end.x) / 2;
-              const midY = (start.y + end.y) / 2;
+              const sourceNode = nodes.find(n => n.id === edge.source);
+              const targetNode = nodes.find(n => n.id === edge.target);
+              const isDynamicRail = sourceNode?.isRail && targetNode?.isRail;
+
+              const lineColor = edge.placedTransport ? (edge.placedTransport === 'train' ? '#8b8b8b' : '#ea580c') : (isDynamicRail ? '#eab308' : '#52525b');
+              
               const dx = end.x - start.x;
               const dy = end.y - start.y;
-              const offset = Math.sqrt(dx*dx + dy*dy) * 0.15; // 15% curve offset
-              const controlX = midX - dy * offset / Math.sqrt(dx*dx + dy*dy);
-              const controlY = midY + dx * offset / Math.sqrt(dx*dx + dy*dy);
+              const len = Math.sqrt(dx*dx + dy*dy);
+
+              const midX = (start.x + end.x) / 2;
+              const midY = (start.y + end.y) / 2;
+              const curveOffset = len * 0.15; 
+              const controlX = midX - dy * curveOffset / len;
+              const controlY = midY + dx * curveOffset / len;
               
               const pathData = `M ${start.x} ${start.y} Q ${controlX} ${controlY} ${end.x} ${end.y}`;
-              
-              // Rail line decoration (crossties)
-              const railDecorations = [];
-              if (isRail && !edge.placedTransport) {
-                const segmentCount = 8;
-                for (let i = 1; i < segmentCount; i++) {
-                  const t = i / segmentCount;
-                  const x = (1-t)*(1-t)*start.x + 2*(1-t)*t*controlX + t*t*end.x;
-                  const y = (1-t)*(1-t)*start.y + 2*(1-t)*t*controlY + t*t*end.y;
-                  const angle = Math.atan2(end.y - start.y, end.x - start.x);
-                  railDecorations.push(
-                    <line key={i} x1={x-Math.sin(angle)*8} y1={y+Math.cos(angle)*8} x2={x+Math.sin(angle)*8} y2={y-Math.cos(angle)*8} stroke={lineColor} strokeWidth="2" opacity="0.6" />
-                  );
-                }
-              }
+
+              const doubleLineOffset = 2;
+              const offsetX = -dy / len * doubleLineOffset;
+              const offsetY = dx / len * doubleLineOffset;
+
+              const pathData1 = `M ${start.x + offsetX} ${start.y + offsetY} Q ${controlX + offsetX} ${controlY + offsetY} ${end.x + offsetX} ${end.y + offsetY}`;
+              const pathData2 = `M ${start.x - offsetX} ${start.y - offsetY} Q ${controlX - offsetX} ${controlY - offsetY} ${end.x - offsetX} ${end.y - offsetY}`;
               
               return (
                 <g key={index} style={{pointerEvents: 'auto', cursor: gameState === 'TRANSPORT_MODE' ? 'pointer' : 'default'}} onClick={() => gameState === 'TRANSPORT_MODE' && store.selectTransportEdge(index)}>
                   {/* Invisible wide path for easier clicking */}
                   <path d={pathData} stroke="transparent" strokeWidth="20" fill="none" />
-                  {/* Visible connection path */}
-                  <path d={pathData} stroke={lineColor} strokeWidth={edge.placedTransport ? "6" : "4"} fill="none" strokeDasharray={(!edge.placedTransport && !isRail) ? "8,4" : "0"} strokeLinecap="round" />
-                  {/* Rail crossties decoration */}
-                  {railDecorations}
+                  
+                  {isDynamicRail ? (
+                    <>
+                      <path d={pathData1} stroke={lineColor} strokeWidth={edge.placedTransport ? "3" : "2"} fill="none"  strokeLinecap="round" />
+                      <path d={pathData2} stroke={lineColor} strokeWidth={edge.placedTransport ? "3" : "2"} fill="none"  strokeLinecap="round" />
+                    </>
+                  ) : (
+                    <path d={pathData} stroke={lineColor} strokeWidth={edge.placedTransport ? "6" : "4"} fill="none" strokeDasharray={edge.placedTransport ? "0" : "8,4"} strokeLinecap="round" />
+                  )}
+
                   {/* Transport icon on path */}
                   {edge.placedTransport && (
                     <g transform={`translate(${midX - 12}, ${midY - 12})`}>
@@ -407,13 +424,14 @@ const renderActionContext = () => {
             const finalX = node.x * spacing;
             const finalY = node.y * spacing;
 
+            const isPlayerControlled = (controller) => controller && controller !== null && ['gray', 'white', 'brown'].includes(controller);
             const isRailheadCandidate = gameState === 'RAILHEAD_ADVANCEMENT' && 
-              node.controller === store.solitaire.chosenArmyGroup && 
+              isPlayerControlled(node.controller) && 
               !node.isRail && 
               edges.some(e => {
                 const otherId = e.source === node.id ? e.target : e.source;
                 const otherNode = nodes.find(n => n.id === otherId);
-                return otherNode && otherNode.isRail;
+                return otherNode && isPlayerControlled(otherNode.controller) && otherNode.isRail;
               });
 
             return (
