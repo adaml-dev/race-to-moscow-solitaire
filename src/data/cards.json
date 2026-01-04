@@ -1,80 +1,314 @@
 {
   "sovietDeck": [
     { 
-      "id": "infantry", 
-      "name": "Piechota (Soviet Army)", 
+      "id": "infantry_1", 
+      "name": "Piechota Sowiecka", 
       "type": "combat", 
-      "cost": { "ammo": 2, "fuel": 0 }, 
-      "img": "⭐️" 
+      "cost": { "ammo": 1, "fuel": 0 }, 
+      "img": "⭐",
+      "description": "Walka kosztuje: 1 Amunicji",
+      "medals": 0
+    },
+    { 
+      "id": "infantry_2", 
+      "name": "Piechota Sowiecka", 
+      "type": "combat", 
+      "cost": { "ammo": 1, "fuel": 0 }, 
+      "img": "⭐",
+      "description": "Walka kosztuje: 1 Amunicji",
+      "medals": 0
     },
     { 
       "id": "shock", 
       "name": "Armia Uderzeniowa", 
       "type": "combat", 
-      "cost": { "ammo": 3, "fuel": 0 }, 
-      "img": "⭐️⭐️" 
+      "cost": { "ammo": 2, "fuel": 0 }, 
+      "img": "⭐⭐",
+      "description": "Walka kosztuje: 2 Amunicji",
+      "medals": 1
     },
     { 
       "id": "mech", 
       "name": "Korpus Zmechanizowany", 
       "type": "combat", 
-      "cost": { "ammo": 2, "fuel": 1 }, 
-      "img": "⚙️" 
+      "cost": { "ammo": 1, "fuel": 1 }, 
+      "img": "⚙️",
+      "description": "Walka kosztuje: 1 Amunicji + 1 Paliwa",
+      "medals": 1
     },
     { 
       "id": "human_wave", 
       "name": "Ludzka Fala", 
       "type": "combat", 
-      "cost": { "ammo": 4, "fuel": 0 }, 
-      "img": "🌊" 
+      "cost": { "ammo": 3, "fuel": 0 }, 
+      "img": "🌊",
+      "description": "Walka kosztuje: 3 Amunicji",
+      "medals": 2
+    },
+    { 
+      "id": "tank_corps", 
+      "name": "Korpus Pancerny", 
+      "type": "combat", 
+      "cost": { "ammo": 2, "fuel": 1 }, 
+      "img": "🛡️",
+      "description": "Walka kosztuje: 2 Amunicji + 1 Paliwa",
+      "medals": 2
+    },
+    {
+      "id": "soviet_bombers",
+      "name": "Sowieckie Bombowce",
+      "type": "event",
+      "effect": "stop",
+      "img": "✈️",
+      "description": "Armia zatrzymuje się (Armia Pancerna może zapłacić 1 Paliwo by kontynuować)."
+    },
+    {
+      "id": "mud_soviet",
+      "name": "Rasputitsa (Błoto)",
+      "type": "event",
+      "effect": "stop",
+      "img": "💧",
+      "description": "Armia zatrzymuje się (Armia Pancerna może zapłacić 1 Paliwo by kontynuować)."
     }
   ],
   "pursuitDeck": [
     { 
-      "id": "mud", 
+      "id": "enemy_reserve_1", 
+      "name": "Rezerwowa Armia Wroga", 
+      "type": "combat", 
+      "cost": { "ammo": 1, "fuel": 0 }, 
+      "img": "⚔️",
+      "description": "Walka kosztuje: 1 Amunicji",
+      "medals": 0
+    },
+    { 
+      "id": "enemy_reserve_2", 
+      "name": "Rezerwowa Armia Wroga", 
+      "type": "combat", 
+      "cost": { "ammo": 1, "fuel": 0 }, 
+      "img": "⚔️",
+      "description": "Walka kosztuje: 1 Amunicji",
+      "medals": 0
+    },
+    { 
+      "id": "mud_1", 
       "name": "Błoto (Rasputitsa)", 
       "type": "event", 
       "effect": "stop", 
-      "costToContinue": { "fuel": 1 },
-      "description": "Zatrzymaj ruch albo zapłać 1 Paliwo."
+      "img": "💧",
+      "description": "Armia zatrzymuje się (Armia Pancerna może zapłacić 1 Paliwo by kontynuować)."
     },
     { 
-      "id": "supplies", 
-      "name": "Przejęte Zapasy", 
+      "id": "mud_2", 
+      "name": "Błoto (Rasputitsa)", 
+      "type": "event", 
+      "effect": "stop", 
+      "img": "💧",
+      "description": "Armia zatrzymuje się (Armia Pancerna może zapłacić 1 Paliwo by kontynuować)."
+    },
+    { 
+      "id": "soviet_bombers_1", 
+      "name": "Sowieckie Bombowce", 
+      "type": "event", 
+      "effect": "stop", 
+      "img": "✈️",
+      "description": "Armia zatrzymuje się (Armia Pancerna może zapłacić 1 Paliwo by kontynuować)."
+    },
+    { 
+      "id": "soviet_bombers_2", 
+      "name": "Sowieckie Bombowce", 
+      "type": "event", 
+      "effect": "stop", 
+      "img": "✈️",
+      "description": "Armia zatrzymuje się (Armia Pancerna może zapłacić 1 Paliwo by kontynuować)."
+    },
+    { 
+      "id": "captured_stock_1", 
+      "name": "Przejęte Składy", 
       "type": "event", 
       "effect": "gain_ammo", 
       "amount": 1,
-      "description": "Znajdujesz zapasy! +1 Amunicji."
+      "img": "📦",
+      "description": "Umieść 1 Amunicję w tym terenie."
     },
     { 
-      "id": "empty", 
-      "name": "Czysta Droga", 
+      "id": "captured_stock_2", 
+      "name": "Przejęte Składy", 
+      "type": "event", 
+      "effect": "gain_ammo", 
+      "amount": 1,
+      "img": "📦",
+      "description": "Umieść 1 Amunicję w tym terenie."
+    },
+    { 
+      "id": "captured_supplies_1", 
+      "name": "Przejęte Zapasy", 
+      "type": "event", 
+      "effect": "gain_fuel", 
+      "amount": 1,
+      "img": "⛽",
+      "description": "Umieść 1 Paliwo w tym terenie."
+    },
+    { 
+      "id": "captured_supplies_2", 
+      "name": "Przejęte Zapasy", 
+      "type": "event", 
+      "effect": "gain_fuel", 
+      "amount": 1,
+      "img": "⛽",
+      "description": "Umieść 1 Paliwo w tym terenie."
+    },
+    { 
+      "id": "requisitions_1", 
+      "name": "Rekwizycje", 
+      "type": "event", 
+      "effect": "gain_food", 
+      "amount": 1,
+      "img": "🌾",
+      "description": "Umieść 1 Żywność w tym terenie."
+    },
+    { 
+      "id": "requisitions_2", 
+      "name": "Rekwizycje", 
+      "type": "event", 
+      "effect": "gain_food", 
+      "amount": 1,
+      "img": "🌾",
+      "description": "Umieść 1 Żywność w tym terenie."
+    },
+    { 
+      "id": "axis_auxiliaries_1", 
+      "name": "Pomocnicy Osi", 
+      "type": "axis_auxiliaries", 
+      "effect": "extra_action",
+      "hasHand": true,
+      "img": "🤝",
+      "description": "Dodatkowa akcja (możesz zatrzymać w ręce)."
+    },
+    { 
+      "id": "axis_auxiliaries_2", 
+      "name": "Pomocnicy Osi", 
+      "type": "axis_auxiliaries", 
+      "effect": "extra_action",
+      "hasHand": false,
+      "img": "🤝",
+      "description": "Dodatkowa akcja (użyj w tej turze)."
+    },
+    { 
+      "id": "recon_1", 
+      "name": "Rekonesans", 
+      "type": "recon", 
+      "effect": "peek",
+      "hasHand": true,
+      "img": "🔍",
+      "description": "Podejrzyj wierzchnią kartę z wybranej talii (dodatkowa akcja, możesz zatrzymać)."
+    },
+    { 
+      "id": "recon_2", 
+      "name": "Rekonesans", 
+      "type": "recon", 
+      "effect": "peek",
+      "hasHand": true,
+      "img": "🔍",
+      "description": "Podejrzyj wierzchnią kartę z wybranej talii (dodatkowa akcja, możesz zatrzymać)."
+    },
+    { 
+      "id": "befehl_halder", 
+      "name": "Befehl von F. Halder", 
+      "type": "event", 
+      "effect": "move_medal_single",
+      "img": "📋",
+      "description": "Przenieś 1 medal z jednego terenu jednkolorowego na inny teren z tym samym kolorem."
+    },
+    { 
+      "id": "fuhrer_befehl", 
+      "name": "Führerbefehl", 
+      "type": "event", 
+      "effect": "move_medal_double",
+      "img": "📜",
+      "description": "Przenieś 1 medal z terenu dwukolorowego na inny teren z tymi samymi dwoma kolorami."
+    },
+    { 
+      "id": "partisans", 
+      "name": "Partyzanci", 
+      "type": "event", 
+      "effect": "flip_rail",
+      "img": "🎭",
+      "description": "Odwróć znacznik wroga z koleją (w trybie solo - Twój własny)."
+    },
+    { 
+      "id": "empty_1", 
+      "name": "Bez Efektu", 
       "type": "event", 
       "effect": "none", 
-      "description": "Droga wolna. Nic się nie dzieje."
+      "img": "➖",
+      "description": "Nic się nie dzieje."
+    },
+    { 
+      "id": "empty_2", 
+      "name": "Bez Efektu", 
+      "type": "event", 
+      "effect": "none", 
+      "img": "➖",
+      "description": "Nic się nie dzieje."
+    },
+    { 
+      "id": "empty_3", 
+      "name": "Bez Efektu", 
+      "type": "event", 
+      "effect": "none", 
+      "img": "➖",
+      "description": "Nic się nie dzieje."
     }
   ],
   "frontDeck": [
     {
-      "id": "counter_attack",
-      "name": "Kontratak Frontalny",
-      "type": "ai_attack",
+      "id": "counter_attack_1",
+      "name": "Kontratak",
+      "type": "soviet_reaction",
       "target": "neighbor_neutral",
-      "description": "Sowieci zajmują miasto przed Twoją armią."
+      "img": "⚡",
+      "description": "Sowiety zajmują sąsiedni neutralny teren."
     },
     {
-      "id": "partisans",
-      "name": "Partyzanci",
-      "type": "ai_attack",
+      "id": "counter_attack_2",
+      "name": "Kontratak",
+      "type": "soviet_reaction",
+      "target": "neighbor_neutral",
+      "img": "⚡",
+      "description": "Sowiety zajmują sąsiedni neutralny teren."
+    },
+    {
+      "id": "counter_attack_3",
+      "name": "Kontratak",
+      "type": "soviet_reaction",
+      "target": "neighbor_neutral",
+      "img": "⚡",
+      "description": "Sowiety zajmują sąsiedni neutralny teren."
+    },
+    {
+      "id": "partisans_attack_1",
+      "name": "Atak Partyzantów",
+      "type": "soviet_reaction",
       "target": "supply_line",
-      "description": "Atak na tyły! Sowieci przejmują Twoje miasto zaopatrzeniowe."
+      "img": "🎭",
+      "description": "Partyzanci atakują Twoje linie zaopatrzenia."
+    },
+    {
+      "id": "partisans_attack_2",
+      "name": "Atak Partyzantów",
+      "type": "soviet_reaction",
+      "target": "supply_line",
+      "img": "🎭",
+      "description": "Partyzanci atakują Twoje linie zaopatrzenia."
     },
     {
       "id": "reinforcements",
-      "name": "Posiłki Pancerne",
-      "type": "ai_attack",
+      "name": "Posiłki Sowieckie",
+      "type": "soviet_reaction",
       "target": "neighbor_any",
-      "description": "Sowieckie czołgi wchodzą do gry w pobliżu frontu."
+      "img": "🛡️",
+      "description": "Sowieckie posiłki wzmacniają front."
     }
   ]
 }

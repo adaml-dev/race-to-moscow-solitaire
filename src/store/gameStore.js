@@ -29,7 +29,7 @@ const useGameStore = create(persist((set, get) => ({
   },
 
   gameState: 'IDLE', 
-  gameStatus: 'PLAYING', 
+  gameStatus: 'CHOOSE_ARMY_GROUP', 
   victoryMessage: '',
 
   activeCard: null,
@@ -39,8 +39,71 @@ const useGameStore = create(persist((set, get) => ({
   
   logs: ["Gra rozpoczęta. Cel: Moskwa i Leningrad."],
 
+  // --- SOLITAIRE GAME STATE ---
+  solitaire: {
+    chosenArmyGroup: null, // 'gray', 'white', or 'brown'
+    turn: 1,
+    actionsLeft: 2,
+    sovietMarkerPool: 3,
+    transportReserve: 4,
+    sovietDeck: [],
+    moveCount: 0,
+  },
+
   // --- AKCJA RESETU GRY ---
   // Zresetuj mechanikę, ale ZACHOWAJ ustawienia widoku (nie nadpisujemy viewState/spacing)
+  initializeSolitaireGame: (armyGroup) => {
+    const newNodes = initialMap.nodes.map(node => {
+      if (node.owner && node.owner !== armyGroup) {
+        return { ...node, controller: node.owner }; // Block areas of other army groups
+      }
+      return { ...node };
+    });
+
+    const newArmies = initialMap.armies.map(a => {
+      if (a.owner === armyGroup) {
+        if (a.type === 'armored') {
+          a.supplies = { fuel: 3, ammo: 3, food: 0 };
+        } else {
+          a.supplies = { fuel: 1, ammo: 3, food: 2 };
+        }
+      }
+      return { ...a, isGrounded: false };
+    });
+
+    // Create and shuffle Soviet deck
+    const greenCards = cardsData.sovietDeck.filter(c => c.era === 'green');
+    const blueCards = cardsData.sovietDeck.filter(c => c.era === 'blue');
+    const shuffledSovietDeck = [...greenCards.sort(() => Math.random() - 0.5), ...blueCards.sort(() => Math.random() - 0.5)];
+
+
+    set({
+      nodes: newNodes,
+      armies: newArmies,
+      solitaire: {
+        chosenArmyGroup: armyGroup,
+        turn: 1,
+        actionsLeft: 2,
+        sovietMarkerPool: 3,
+        transportReserve: 4,
+        sovietDeck: shuffledSovietDeck,
+      },
+      playerResources: {
+        trucks: 5,
+        trains: 3,
+        supplyStock: { fuel: 20, ammo: 20, food: 20 },
+        medals: 0
+      },
+      gameState: 'IDLE',
+      gameStatus: 'PLAYING',
+      logs: [`Gra solo rozpoczęta jako Grupa Armii ${armyGroup}.`],
+      activeCard: null,
+      activeArmyId: null,
+      previousLocation: null,
+      selectedEdgeIndex: null
+    });
+  },
+
   resetGame: () => {
       set({
         nodes: initialMap.nodes,
@@ -48,7 +111,7 @@ const useGameStore = create(persist((set, get) => ({
         armies: initialMap.armies.map(a => ({ ...a, isGrounded: false })),
         playerResources: { trucks: 5, trains: 3, supplyStock: { fuel: 20, ammo: 20, food: 20 }, medals: 0 },
         gameState: 'IDLE',
-        gameStatus: 'PLAYING',
+        gameStatus: 'CHOOSE_ARMY_GROUP',
         logs: ["Nowa gra rozpoczęta."],
         activeCard: null,
         activeArmyId: null,
@@ -361,9 +424,22 @@ const useGameStore = create(persist((set, get) => ({
   },
 
   moveArmy: (armyId, targetNodeId) => {
-    const { armies, nodes, edges } = get();
+    const { armies, nodes, edges, gameState, spendAction, solitaire } = get();
+
+    // Check for correct army type first
+    const army = armies.find(a => a.id === armyId);
+    if ((gameState === 'MOVE_ARMORED_ARMY' && army.type !== 'armored') || (gameState === 'MOVE_FIELD_ARMIES' && army.type !== 'field')) {
+      set(state => ({ logs: [...state.logs, `⛔ W tym trybie możesz poruszać tylko armie ${gameState === 'MOVE_ARMORED_ARMY' ? 'pancerne' : 'polowe'}.`] }));
+      return;
+    }
+
+    // Handle action spending
+    if (gameState === 'MOVE_FIELD_ARMIES' || (gameState === 'MOVE_ARMORED_ARMY' && solitaire.moveCount === 0)) {
+      if (!spendAction()) return; // Stop if no actions left
+    }
+    
     const armyIndex = armies.findIndex(a => a.id === armyId);
-    const army = armies[armyIndex];
+
     if (army.isGrounded) {
         set(state => ({ logs: [...state.logs, `⛔ ${army.name} jest uziemiona! Dostarcz żywność.`] }));
         return;
@@ -387,7 +463,7 @@ const useGameStore = create(persist((set, get) => ({
         }
     }
 
-    const newArmies = [...armies];
+    const newArmies = JSON.parse(JSON.stringify(armies));
     if (army.type === 'armored') newArmies[armyIndex].supplies.fuel -= 1;
     newArmies[armyIndex].supplies.ammo -= ammoCost;
     
@@ -395,27 +471,57 @@ const useGameStore = create(persist((set, get) => ({
     newArmies[armyIndex].location = targetNodeId;
 
     let drawnCard = null;
-    let newNodes = [...nodes];
+    let newNodes = JSON.parse(JSON.stringify(nodes));
     const wasMedal = targetNode.medal && targetNode.controller !== army.owner;
 
     if (!targetNode.sovietMarker && targetNode.controller !== army.owner) {
         const nodeIndex = newNodes.findIndex(n => n.id === targetNodeId);
         newNodes[nodeIndex].controller = army.owner;
-        newNodes[nodeIndex].isPartisan = false; // NOWOŚĆ: Czyścimy na wszelki wypadek
+        newNodes[nodeIndex].isPartisan = false;
         drawnCard = drawCard(cardsData.pursuitDeck);
         if (wasMedal) get().awardMedal(targetNode.name);
     } else if (targetNode.sovietMarker) {
         drawnCard = drawCard(cardsData.sovietDeck);
     }
 
+    const nextGameState = drawnCard ? 'ENCOUNTER_RESOLVING' : (gameState === 'MOVE_ARMORED_ARMY' && solitaire.moveCount < 2) ? 'MOVE_ARMORED_ARMY' : 'IDLE';
+
     set(state => ({
-      armies: newArmies, nodes: newNodes, previousLocation: prevLoc, activeArmyId: armyId, activeCard: drawnCard,
-      gameState: drawnCard ? 'ENCOUNTER_RESOLVING' : 'IDLE', logs: [...state.logs, `${army.name} wchodzi do ${targetNode.name}.`]
+      armies: newArmies, 
+      nodes: newNodes, 
+      previousLocation: prevLoc, 
+      activeArmyId: armyId, 
+      activeCard: drawnCard,
+      gameState: nextGameState,
+      solitaire: {
+        ...state.solitaire,
+        moveCount: gameState === 'MOVE_ARMORED_ARMY' ? state.solitaire.moveCount + 1 : 0
+      },
+      logs: [...state.logs, `${army.name} wchodzi do ${targetNode.name}.`]
     }));
 
     if (!targetNode.sovietMarker) {
         get().checkEncirclement();
         get().checkVictoryCondition(targetNodeId);
+    }
+
+    if (gameState === 'MOVE_FIELD_ARMIES') {
+      const movedArmy = get().armies.find(a => a.id === armyId);
+      if (movedArmy.supplies.food > 0) {
+          set({ gameState: 'CONFIRM_FORCED_MARCH' });
+      }
+  }
+  },
+
+  confirmForcedMarch: (decision) => {
+    const { armies, activeArmyId } = get();
+    if (decision) {
+        const newArmies = JSON.parse(JSON.stringify(armies));
+        const armyIndex = newArmies.findIndex(a => a.id === activeArmyId);
+        newArmies[armyIndex].supplies.food -= 1;
+        set({ armies: newArmies, gameState: 'MOVE_FIELD_ARMIES' });
+    } else {
+        set({ gameState: 'IDLE' });
     }
   },
 
@@ -499,6 +605,149 @@ const useGameStore = create(persist((set, get) => ({
         return;
     }
     set({ gameState: 'TRANSPORT_DIALOG', selectedEdgeIndex: edgeIndex });
+  },
+
+  setGameState: (newState) => {
+    if (newState === 'MOVE_ARMORED_ARMY' || newState === 'MOVE_FIELD_ARMIES') {
+      set(state => ({ gameState: newState, solitaire: { ...state.solitaire, moveCount: 0 } }));
+    } else {
+      set({ gameState: newState });
+    }
+  },
+
+  finishMove: () => {
+    set(state => ({ gameState: 'IDLE', solitaire: { ...state.solitaire, moveCount: 0 } }));
+  },
+
+  // --- SOLITAIRE ACTIONS ---
+  spendAction: () => {
+    const { solitaire } = get();
+    if (solitaire.actionsLeft > 0) {
+      set({ solitaire: { ...solitaire, actionsLeft: solitaire.actionsLeft - 1 } });
+      return true;
+    } else {
+      set(state => ({ logs: [...state.logs, "⛔ Brak akcji w tej turze!"] }));
+      return false;
+    }
+  },
+
+  takeSupplies: () => {
+    const { spendAction, playerResources, logs } = get();
+    if (spendAction()) {
+      const newSupplyStock = { ...playerResources.supplyStock };
+      newSupplyStock.fuel += 2;
+      newSupplyStock.ammo += 2;
+      newSupplyStock.food += 2;
+      set({
+        playerResources: { ...playerResources, supplyStock: newSupplyStock },
+        logs: [...logs, "📥 Pobrano zaopatrzenie (+2 każdego rodzaju) do Bazy Głównej."]
+      });
+    }
+  },
+
+  takeTransport: () => {
+    const { spendAction, playerResources, logs } = get();
+    if (spendAction()) {
+      set({
+        playerResources: { ...playerResources, trucks: playerResources.trucks + 2 },
+        logs: [...logs, "🚚 Pobrano 2 ciężarówki do rezerwy."]
+      });
+    }
+  },
+
+  endTurn: () => {
+    set(state => ({ 
+      gameState: 'RAILHEAD_ADVANCEMENT', 
+      logs: [...state.logs, `--- Koniec tury ${state.solitaire.turn} ---`, "🛤️ Wybierz znacznik do ulepszenia na kolej."] 
+    }));
+  },
+
+  advanceRailhead: (nodeId) => {
+    const { nodes, sovietReaction } = get();
+    const newNodes = nodes.map(n => n.id === nodeId ? { ...n, isRail: true } : n);
+    set({ nodes: newNodes, gameState: 'IDLE' });
+    sovietReaction();
+  },
+
+  // railheadAdvancement: () => {
+  //   const { logs } = get();
+  //   set({ logs: [...logs, "🛤️ Faza postępu kolei (jeszcze nie zaimplementowana)."] });
+  // },
+
+  sovietReaction: () => {
+    const { nodes, edges, armies, solitaire, logs } = get();
+    const newNodes = [...nodes];
+    const newLogs = [...logs];
+    let newSovietMarkerPool = solitaire.sovietMarkerPool;
+
+    const playerMarkers = newNodes.filter(n => n.controller === solitaire.chosenArmyGroup);
+    const armyLocations = armies.map(a => a.location);
+    const startingAreas = newNodes.filter(n => n.type === 'main_supply_base').map(n => n.id);
+
+    const validMarkersToRemove = playerMarkers.filter(marker => {
+      const isAdjacentToArmy = edges.some(e => 
+        (e.source === marker.id && armyLocations.includes(e.target)) || 
+        (e.target === marker.id && armyLocations.includes(e.source))
+      );
+      const isAdjacentToStartingArea = edges.some(e =>
+        (e.source === marker.id && startingAreas.includes(e.target)) ||
+        (e.target === marker.id && startingAreas.includes(e.source))
+      );
+      const isAdjacentToSoviet = edges.some(e => {
+        const otherId = e.source === marker.id ? e.target : e.source;
+        const otherNode = newNodes.find(n => n.id === otherId);
+        return otherNode && (otherNode.sovietMarker || otherNode.controller && otherNode.controller !== solitaire.chosenArmyGroup);
+      });
+
+      return !isAdjacentToArmy && !isAdjacentToStartingArea && isAdjacentToSoviet;
+    });
+
+    if (validMarkersToRemove.length > 0) {
+      const markerToRemove = validMarkersToRemove[Math.floor(Math.random() * validMarkersToRemove.length)];
+      const markerIndex = newNodes.findIndex(n => n.id === markerToRemove.id);
+      newNodes[markerIndex].controller = null;
+      newLogs.push(`☭ Sowiecka kontrofensywa! Utracono kontrolę nad ${markerToRemove.name}.`);
+    } else {
+      newLogs.push("☭ Sowieci nie byli w stanie przeprowadzić kontrofensywy.");
+    }
+
+    const newSolitaireState = { ...solitaire, turn: solitaire.turn + 1, actionsLeft: 2, sovietMarkerPool: newSovietMarkerPool };
+    set({ nodes: newNodes, logs: newLogs, solitaire: newSolitaireState });
+
+    //Soviet Marker Placement
+    const { drawSovietCard } = get();
+    drawSovietCard();
+  },
+  drawSovietCard: () => {
+    const { solitaire, nodes, logs } = get();
+    const { sovietDeck, sovietMarkerPool } = solitaire;
+    if (sovietMarkerPool <= 0) {
+        get().endGame("standard");
+        return;
+    }
+    const [card, ...restOfDeck] = sovietDeck;
+
+    const targetNode = nodes.find(node => node.id === card.target);
+    if (targetNode) {
+        const newNodes = [...nodes];
+        const nodeIndex = newNodes.findIndex(n => n.id === targetNode.id);
+        newNodes[nodeIndex].sovietMarker = true;
+        set({ 
+            nodes: newNodes, 
+            solitaire: { ...solitaire, sovietDeck: restOfDeck, sovietMarkerPool: sovietMarkerPool - 1 },
+            logs: [...logs, `☭ Sowieci wzmacniają ${targetNode.name}!`]
+        });
+    }
+  },
+  
+  endGame: (victoryType) => {
+    const { playerResources } = get();
+    if (victoryType === "standard") {
+        set({ 
+            gameStatus: 'VICTORY', 
+            victoryMessage: `KONIEC GRY! Sowiecki znacznik zaopatrzenia wyczerpany. Twój wynik to ${playerResources.medals} medali.`
+        });
+    } 
   }
 
 }), 

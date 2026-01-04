@@ -253,6 +253,11 @@ body, html, #root {
 .map-node.fort { border-style: double; }
 .map-node.victory { border-color: #eab308; box-shadow: 0 0 20px rgba(234, 179, 8, 0.3); border-radius: 50%; }
 
+.railhead-candidate {
+  box-shadow: 0 0 20px yellow;
+  cursor: pointer;
+}
+
 .army-token {
     background-color: var(--accent-blue);
     color: white;

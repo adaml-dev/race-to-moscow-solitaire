@@ -8,6 +8,41 @@ import {
   CombatIcon, SupplyBoxIcon 
 } from './components/Icons';
 
+const ForcedMarchConfirm = ({ store }) => (
+  <div className="panel-section">
+    <div className="panel-title">Marsz Forsowny</div>
+    <p>Czy chcesz wykonać marsz forsowny za 1 punkt żywności?</p>
+    <div style={{display: 'flex', justifyContent: 'space-around'}}>
+      <button className="btn btn-success" onClick={() => store.confirmForcedMarch(true)}>Tak</button>
+      <button className="btn btn-danger" onClick={() => store.confirmForcedMarch(false)}>Nie</button>
+    </div>
+  </div>
+);
+
+const SolitaireActions = ({ store }) => {
+  const { solitaire, takeSupplies, takeTransport, endTurn, finishMove, gameState } = store;
+  const { turn, actionsLeft, moveCount } = solitaire;
+
+  return (
+    <div className="panel-section">
+      <div className="panel-title">TURA {turn} - Akcje: {actionsLeft}</div>
+      <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
+        { gameState === 'MOVE_ARMORED_ARMY' && moveCount > 0 ?
+          <button className="btn btn-success" onClick={() => finishMove()}>Zakończ Ruch</button> :
+          <>
+            <button className="btn btn-primary" onClick={() => store.setGameState('MOVE_FIELD_ARMIES')}>Ruch Armii Polowych</button>
+            <button className="btn btn-primary" onClick={() => store.setGameState('MOVE_ARMORED_ARMY')}>Ruch Armii Pancernej</button>
+            <button className="btn btn-primary" onClick={() => store.toggleTransportMode()}>Transport Zaopatrzenia</button>
+            <button className="btn btn-primary" onClick={() => takeSupplies()}>Pobierz Zaopatrzenie</button>
+            <button className="btn btn-primary" onClick={() => takeTransport()}>Pobierz Transport</button>
+            <button className="btn btn-warning" onClick={() => endTurn()}>Zakończ Turę</button>
+          </>
+        }
+      </div>
+    </div>
+  );
+};
+
 const getNodeCoords = (nodes, id, spacing) => {
   const node = nodes.find(n => n.id === id);
   return node ? { x: node.x * spacing + 50, y: node.y * spacing + 40 } : { x: 0, y: 0 };
@@ -98,6 +133,19 @@ function App() {
       store.setViewState({ scale: 0.6, x: -100, y: -500 });
       store.setSpacing(1.0);
   };
+
+  if (gameStatus === 'CHOOSE_ARMY_GROUP') {
+    return (
+      <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#131316', color: 'white', flexDirection: 'column'}}>
+        <h1 style={{color: '#eab308', fontSize: '3em'}}>Wybierz Grupę Armii</h1>
+        <div style={{display: 'flex', gap: '20px', marginTop: '20px'}}>
+          <button className="btn btn-primary" onClick={() => store.initializeSolitaireGame('gray')}>Grupa Armii Północ (Szara)</button>
+          <button className="btn btn-primary" onClick={() => store.initializeSolitaireGame('white')}>Grupa Armii Środek (Biała)</button>
+          <button className="btn btn-primary" onClick={() => store.initializeSolitaireGame('brown')}>Grupa Armii Południe (Brązowa)</button>
+        </div>
+      </div>
+    );
+  }
 
   if (gameStatus === 'VICTORY') {
       return (
@@ -219,7 +267,8 @@ function App() {
         </div>
 
         <div className="sidebar-scroll-content">
-            {renderArmyStatus()}
+            <SolitaireActions store={store} />
+            {gameState === 'CONFIRM_FORCED_MARCH' ? <ForcedMarchConfirm store={store} /> : renderArmyStatus()}
             {renderActionContext()}
             <div className="panel-section"><div className="panel-title">Logi</div><div className="logs-container"><ul className="logs-list">{logs.slice().reverse().map((log, i) => <li key={i}>{log}</li>)}</ul></div></div>
         </div>
@@ -304,11 +353,21 @@ function App() {
             const finalX = node.x * spacing;
             const finalY = node.y * spacing;
 
+            const isRailheadCandidate = gameState === 'RAILHEAD_ADVANCEMENT' && 
+              node.controller === store.solitaire.chosenArmyGroup && 
+              !node.isRail && 
+              edges.some(e => {
+                const otherId = e.source === node.id ? e.target : e.source;
+                const otherNode = nodes.find(n => n.id === otherId);
+                return otherNode && otherNode.isRail;
+              });
+
             return (
                 <div key={node.id} 
-                    className={`map-node ${typeClass} ${controlClass}`}
+                    className={`map-node ${typeClass} ${controlClass} ${isRailheadCandidate ? 'railhead-candidate' : ''}`}
                     style={{ position: 'absolute', left: `${finalX}px`, top: `${finalY}px`, borderRadius: node.type === 'victory' ? '50%' : '8px', textAlign: 'center', zIndex: 1}}
                     onMouseDown={(e) => e.stopPropagation()}
+                    onClick={() => isRailheadCandidate && store.advanceRailhead(node.id)}
                 >
                     <strong style={{ display: 'block', marginBottom: '3px' }}>{node.name}</strong>
                     
@@ -339,7 +398,7 @@ function App() {
     </button>
 )}
 
-                    {activeArmy.location !== node.id && gameState === 'IDLE' && isConnected && (
+                    {activeArmy.location !== node.id && (gameState === 'MOVE_FIELD_ARMIES' || gameState === 'MOVE_ARMORED_ARMY') && isConnected && (
                         <div style={{ marginTop: '2px' }}>
                             <button className="btn btn-move" onClick={() => store.moveArmy(activeArmy.id, node.id)} disabled={activeArmy.isGrounded} title={activeArmy.isGrounded ? "Armia uziemiona (brak żywności)" : "Przemieść tutaj"}>
                                 {activeArmy.isGrounded ? 'HALT' : '>> RUCH <<'}
