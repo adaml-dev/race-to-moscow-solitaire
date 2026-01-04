@@ -3,7 +3,7 @@ import useGameStore from '../store/gameStore';
 import { MedalIcon, TruckIcon, TrainIcon, FuelIcon, AmmoIcon, FoodIcon } from './Icons';
 
 const TopBar = () => {
-  const { playerResources, solitaire } = useGameStore();
+  const { playerResources, solitaire, adjustSovietMarkers } = useGameStore();
 
   return (
     <div className="top-bar">
@@ -24,6 +24,40 @@ const TopBar = () => {
           <TrainIcon size={18} />
           <span>Pociągi:</span>
           <strong>{playerResources.trains}</strong>
+        </div>
+        <div className="resource-item" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <span style={{ fontSize: '18px' }}>☭</span>
+          <span>Żetony sowieckie:</span>
+          <button 
+            onClick={() => adjustSovietMarkers(-1)}
+            style={{ 
+              padding: '2px 8px', 
+              cursor: 'pointer',
+              fontSize: '14px',
+              backgroundColor: '#ef4444',
+              color: 'white',
+              border: 'none',
+              borderRadius: '3px'
+            }}
+            disabled={solitaire.sovietMarkerPool <= 0}
+          >
+            −
+          </button>
+          <strong>{solitaire.sovietMarkerPool}</strong>
+          <button 
+            onClick={() => adjustSovietMarkers(1)}
+            style={{ 
+              padding: '2px 8px', 
+              cursor: 'pointer',
+              fontSize: '14px',
+              backgroundColor: '#22c55e',
+              color: 'white',
+              border: 'none',
+              borderRadius: '3px'
+            }}
+          >
+            +
+          </button>
         </div>
       </div>
       <div className="top-bar-section">

@@ -35,7 +35,7 @@ const useGameStore = create(persist((set, get) => ({
 
   // --- STAN GRY ---
   nodes: initialMap.nodes,
-  edges: initialMap.edges.map((e, i) => ({ ...e, id: i, placedTransport: null })), 
+  edges: initialMap.edges.map((e, i) => ({ ...e, id: i, hasTruck: false, hasTrain: false })), 
   armies: initialMap.armies.map(a => ({ ...a, isGrounded: false })),
   
   playerResources: {
@@ -133,7 +133,7 @@ const useGameStore = create(persist((set, get) => ({
   resetGame: () => {
       set({
         nodes: initialMap.nodes,
-        edges: initialMap.edges.map((e, i) => ({ ...e, id: i, placedTransport: null })), 
+        edges: initialMap.edges.map((e, i) => ({ ...e, id: i, hasTruck: false, hasTrain: false })), 
         armies: initialMap.armies.map(a => ({ ...a, isGrounded: false })),
         playerResources: { trucks: 5, trains: 3, supplyStock: { fuel: 20, ammo: 20, food: 20 }, medals: 0 },
         gameState: 'IDLE',
@@ -285,8 +285,10 @@ const useGameStore = create(persist((set, get) => ({
       let trainsReturned = 0;
 
       newEdges.forEach(edge => {
-          if (edge.placedTransport === 'truck') trucksReturned++;
-          if (edge.placedTransport === 'train') trainsReturned++;
+          if (edge.hasTruck) trucksReturned++;
+          if (edge.hasTrain) trainsReturned++;
+          edge.hasTruck = false;
+          edge.hasTrain = false;
           edge.placedTransport = null;
       });
 
@@ -371,6 +373,16 @@ const useGameStore = create(persist((set, get) => ({
         return;
     }
 
+    // Rule 14.6: Check stacking restrictions
+    if (transportType === 'truck' && edge.hasTruck) {
+        set(state => ({ logs: [...state.logs, "⛔ BŁĄD: Na tej linii jest już ciężarówka! (Zasada 14.6)"] }));
+        return;
+    }
+    if (transportType === 'train' && edge.hasTrain) {
+        set(state => ({ logs: [...state.logs, "⛔ BŁĄD: Na tej linii jest już pociąg! (Zasada 14.6)"] }));
+        return;
+    }
+
     const sourceNode = nodes.find(n => n.id === sourceId);
     const targetNode = nodes.find(n => n.id === targetId);
 
@@ -406,9 +418,16 @@ const useGameStore = create(persist((set, get) => ({
         newNodes[targetNodeIndex].resources[key] = (newNodes[targetNodeIndex].resources[key] || 0) + amount;
     });
 
-    if (transportType === 'truck') newResources.trucks -= 1;
-    if (transportType === 'train') newResources.trains -= 1;
-    newEdges[selectedEdgeIndex].placedTransport = transportType;
+    if (transportType === 'truck') {
+      newResources.trucks -= 1;
+      newEdges[selectedEdgeIndex].hasTruck = true;
+      newEdges[selectedEdgeIndex].placedTransport = 'truck';
+    }
+    if (transportType === 'train') {
+      newResources.trains -= 1;
+      newEdges[selectedEdgeIndex].hasTrain = true;
+      newEdges[selectedEdgeIndex].placedTransport = 'train';
+    }
 
     let shouldTriggerReorg = false;
     if (newResources.trains === 0) shouldTriggerReorg = true;
@@ -697,9 +716,10 @@ const useGameStore = create(persist((set, get) => ({
       let trainsReturned = 0;
 
       newEdges.forEach(edge => {
-          if (edge.placedTransport === 'truck') trucksReturned++;
-          if (edge.placedTransport === 'train') trainsReturned++;
-          edge.placedTransport = null;
+          if (edge.hasTruck) trucksReturned++;
+          if (edge.hasTrain) trainsReturned++;
+          edge.hasTruck = false;
+          edge.hasTrain = false;
       });
 
       newResources.trucks += trucksReturned;
@@ -1019,6 +1039,14 @@ const useGameStore = create(persist((set, get) => ({
       gameState: 'IDLE',
       solitaire: { ...state.solitaire, moveCount: 0 }
     }));
+  },
+
+  adjustSovietMarkers: (amount) => {
+    const { solitaire } = get();
+    const newPool = Math.max(0, solitaire.sovietMarkerPool + amount);
+    set({
+      solitaire: { ...solitaire, sovietMarkerPool: newPool }
+    });
   }
 
 }), 

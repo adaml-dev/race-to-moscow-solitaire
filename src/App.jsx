@@ -69,6 +69,7 @@ const ContinueMoveConfirm = ({ store }) => (
 const SolitaireActions = ({ store }) => {
   const { solitaire, takeSupplies, takeTransport, endTurn, finishMove, gameState } = store;
   const { turn, actionsLeft, moveCount } = solitaire;
+  const noActions = actionsLeft <= 0;
 
   return (
     <div className="panel-section">
@@ -77,12 +78,12 @@ const SolitaireActions = ({ store }) => {
         { gameState === 'MOVE_ARMORED_ARMY' && moveCount > 0 ?
           <button className="btn btn-success" onClick={() => finishMove()} style={{gridColumn: '1 / -1'}}>Zakończ Ruch</button> :
           <>
-            <button className="btn btn-primary" onClick={() => store.setGameState('MOVE_FIELD_ARMIES')}>Ruch Armii Polowych</button>
-            <button className="btn btn-primary" onClick={() => store.setGameState('MOVE_ARMORED_ARMY')}>Ruch Armii Pancernej</button>
-            <button className="btn btn-primary" onClick={() => store.toggleTransportMode()}>Transport</button>
-            <button className="btn btn-primary" onClick={() => store.setGameState('RESUPPLY_BASE')}>Uzupełnij Bazę</button>
-            <button className="btn btn-primary" onClick={() => takeSupplies()}>Weź Zaopatrzenie</button>
-            <button className="btn btn-primary" onClick={() => takeTransport()}>Weź Transport</button>
+            <button className="btn btn-primary" onClick={() => store.setGameState('MOVE_FIELD_ARMIES')} disabled={noActions}>Ruch Armii Polowych</button>
+            <button className="btn btn-primary" onClick={() => store.setGameState('MOVE_ARMORED_ARMY')} disabled={noActions}>Ruch Armii Pancernej</button>
+            <button className="btn btn-primary" onClick={() => store.toggleTransportMode()} disabled={noActions}>Transport</button>
+            <button className="btn btn-primary" onClick={() => store.setGameState('RESUPPLY_BASE')} disabled={noActions}>Uzupełnij Bazę</button>
+            <button className="btn btn-primary" onClick={() => takeSupplies()} disabled={noActions}>Weź Zaopatrzenie</button>
+            <button className="btn btn-primary" onClick={() => takeTransport()} disabled={noActions}>Weź Transport</button>
             <button className="btn btn-warning" onClick={() => endTurn()}>Zakończ Turę</button>
           </>
         }
@@ -280,13 +281,15 @@ const renderActionContext = () => {
                   <button 
                     className={`btn ${transportForm.transportType === 'truck' ? 'btn-primary' : ''}`} 
                     onClick={() => setTransportForm({...transportForm, transportType: 'truck'})} 
-                    disabled={playerResources.trucks < 1}>
+                    disabled={playerResources.trucks < 1 || edge.hasTruck}
+                    title={edge.hasTruck ? "Na tej linii jest już ciężarówka! (Zasada 14.6)" : ""}>
                       <TruckIcon /> Ciężarówka ({playerResources.trucks})
                   </button>
                   <button 
                     className={`btn ${transportForm.transportType === 'train' ? 'btn-primary' : ''}`} 
                     onClick={() => setTransportForm({...transportForm, transportType: 'train'})} 
-                    disabled={playerResources.trains < 1 || !sourceNode.isRail || !targetNode.isRail}>
+                    disabled={playerResources.trains < 1 || !sourceNode.isRail || !targetNode.isRail || edge.hasTrain}
+                    title={edge.hasTrain ? "Na tej linii jest już pociąg! (Zasada 14.6)" : (!sourceNode.isRail || !targetNode.isRail) ? "Brak torow kolejowych" : ""}>
                       <TrainIcon /> Pociąg ({playerResources.trains})
                   </button>
                 </div>
