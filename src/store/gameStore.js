@@ -656,10 +656,28 @@ const useGameStore = create(persist((set, get) => ({
   },
 
   endTurn: () => {
-    set(state => ({ 
-      gameState: 'RAILHEAD_ADVANCEMENT', 
-      logs: [...state.logs, `--- Koniec tury ${state.solitaire.turn} ---`, "🛤️ Wybierz znacznik do ulepszenia na kolej."] 
-    }));
+    const { nodes, edges, solitaire, sovietReaction } = get();
+    const railheadCandidates = nodes.filter(node => 
+      node.controller === solitaire.chosenArmyGroup && 
+      !node.isRail && 
+      edges.some(e => {
+        const otherId = e.source === node.id ? e.target : e.source;
+        const otherNode = nodes.find(n => n.id === otherId);
+        return otherNode && otherNode.isRail;
+      })
+    );
+
+    if (railheadCandidates.length > 0) {
+      set(state => ({ 
+        gameState: 'RAILHEAD_ADVANCEMENT', 
+        logs: [...state.logs, `--- Koniec tury ${state.solitaire.turn} ---`, "🛤️ Wybierz znacznik do ulepszenia na kolej."] 
+      }));
+    } else {
+      set(state => ({ 
+        logs: [...state.logs, `--- Koniec tury ${state.solitaire.turn} ---`, "🛤️ Brak możliwości ulepszenia kolei w tej turze."] 
+      }));
+      sovietReaction();
+    }
   },
 
   advanceRailhead: (nodeId) => {

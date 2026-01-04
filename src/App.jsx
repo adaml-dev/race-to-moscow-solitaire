@@ -268,6 +268,24 @@ function App() {
 
         <div className="sidebar-scroll-content">
             <SolitaireActions store={store} />
+            {gameState === 'RAILHEAD_ADVANCEMENT' && 
+              <div className="panel-section">
+                <div className="panel-title">Postęp Kolei</div>
+                <p>Wybierz jeden z podświetlonych obszarów, aby ulepszyć go do połączenia kolejowego.</p>
+                <ul>
+                  {nodes.filter(node => 
+                    node.controller === store.solitaire.chosenArmyGroup && 
+                    !node.isRail && 
+                    edges.some(e => {
+                      const otherId = e.source === node.id ? e.target : e.source;
+                      const otherNode = nodes.find(n => n.id === otherId);
+                      return otherNode && otherNode.isRail;
+                    })
+                  ).map(node => <li key={node.id}><button className='btn btn-link' onClick={() => store.advanceRailhead(node.id)}>{node.name}</button></li>)}
+                </ul>
+                <button className="btn btn-secondary" onClick={() => store.sovietReaction()}>Pomiń</button>
+              </div>
+            }
             {gameState === 'CONFIRM_FORCED_MARCH' ? <ForcedMarchConfirm store={store} /> : renderArmyStatus()}
             {renderActionContext()}
             <div className="panel-section"><div className="panel-title">Logi</div><div className="logs-container"><ul className="logs-list">{logs.slice().reverse().map((log, i) => <li key={i}>{log}</li>)}</ul></div></div>

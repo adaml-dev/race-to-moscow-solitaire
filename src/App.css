@@ -256,6 +256,14 @@ body, html, #root {
 .railhead-candidate {
   box-shadow: 0 0 20px yellow;
   cursor: pointer;
+  border: 2px dashed yellow;
+  animation: pulse-yellow 2s infinite;
+}
+
+@keyframes pulse-yellow {
+    0% { box-shadow: 0 0 0 0 rgba(255, 255, 0, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(255, 255, 0, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 255, 0, 0); }
 }
 
 .army-token {
