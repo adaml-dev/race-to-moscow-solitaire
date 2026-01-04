@@ -123,40 +123,51 @@ const useGameStore = create(persist((set, get) => ({
   // ... (RESZTA KODU BEZ ZMIAN: awardMedal, checkVictoryCondition, checkEncirclement, triggerSovietReaction, etc.) ...
 
   resupplyBase: (baseNodeId) => {
-      const { nodes, playerResources } = get();
-      const nodeIndex = nodes.findIndex(n => n.id === baseNodeId);
-      
-      // 1. GŁĘBOKA KOPIA ZASOBÓW GRACZA (naprawa błędu)
-      const newResources = { 
-          ...playerResources,
-          supplyStock: { ...playerResources.supplyStock } // Kopiujemy obiekt w środku!
-      };
+    const { spendAction, nodes, playerResources } = get();
+    if (spendAction()) {
+        const nodeIndex = nodes.findIndex(n => n.id === baseNodeId);
+        if (nodeIndex === -1) return;
 
-      // 2. GŁĘBOKA KOPIA WĘZŁÓW (tylko tego edytowanego)
-      const newNodes = nodes.map((node, i) => {
-          if (i === nodeIndex) {
-              return {
-                  ...node,
-                  resources: { ...node.resources } // Kopiujemy zasoby w mieście
-              };
-          }
-          return node;
-      });
+        const newResources = { 
+            ...playerResources,
+            supplyStock: { ...playerResources.supplyStock } 
+        };
+        const newNodes = nodes.map((node, i) => {
+            if (i === nodeIndex) {
+                return {
+                    ...node,
+                    resources: { ...node.resources } 
+                };
+            }
+            return node;
+        });
 
-      // Logika: Pobierz 3 sztuki każdego surowca z bazy globalnej do miasta
-      ['fuel', 'ammo', 'food'].forEach(res => {
-          if (newResources.supplyStock[res] >= 3) {
-              newResources.supplyStock[res] -= 3;
-              newNodes[nodeIndex].resources[res] = (newNodes[nodeIndex].resources[res] || 0) + 3;
-          }
-      });
+        let supplied = false;
+        ['fuel', 'ammo', 'food'].forEach(res => {
+            if (newResources.supplyStock[res] >= 3) {
+                newResources.supplyStock[res] -= 3;
+                if (!newNodes[nodeIndex].resources) newNodes[nodeIndex].resources = { fuel: 0, ammo: 0, food: 0 };
+                newNodes[nodeIndex].resources[res] = (newNodes[nodeIndex].resources[res] || 0) + 3;
+                supplied = true;
+            }
+        });
 
-      set(state => ({
-          nodes: newNodes, 
-          playerResources: newResources,
-          logs: [...state.logs, `📦 Uzupełniono zapasy w bazie ${newNodes[nodeIndex].name}.`]
-      }));
-  },
+        if (supplied) {
+            set(state => ({
+                nodes: newNodes, 
+                playerResources: newResources,
+                logs: [...state.logs, `📦 Uzupełniono zapasy w bazie ${newNodes[nodeIndex].name}. (-1 akcja)`],
+                gameState: 'IDLE' // Wychodzimy z trybu uzupełniania
+            }));
+        } else {
+            // Jeśli nie udało się nic pobrać, akcja i tak jest zużyta, ale informujemy
+            set(state => ({ 
+                logs: [...state.logs, `⚠️ Brak wystarczających zasobów w stocku do uzupełnienia.`],
+                gameState: 'IDLE'
+            }));
+        }
+    }
+},
   
   awardMedal: (nodeName) => {
       set(state => ({
@@ -394,19 +405,24 @@ const useGameStore = create(persist((set, get) => ({
     const targetNodeIndex = newNodes.findIndex(n => n.id === targetId);
 
     if (newNodes[sourceNodeIndex].sovietMarker || newNodes[targetNodeIndex].sovietMarker) {
-         set(state => ({ logs: [...state.logs, "⛔ BŁĄD: Linia przerwana przez wroga! Odbij teren."] }));
+         set(state => ({ logs: [...state.logs, "⛔ BŁĄD: Linia przerwana przez wroga! Odbij teren."], gameState: 'TRANSPORT_MODE' }));
          return;
     }
 
-    Object.keys(resourcesToMove).forEach(key => {
-        const amount = resourcesToMove[key];
-        if (newNodes[sourceNodeIndex].resources[key] >= amount) newNodes[sourceNodeIndex].resources[key] -= amount;
+    ['fuel', 'ammo', 'food'].forEach(key => {
+        const amount = resourcesToMove[key] || 0;
+        if (newNodes[sourceNodeIndex].resources && newNodes[sourceNodeIndex].resources[key] >= amount) {
+            newNodes[sourceNodeIndex].resources[key] -= amount;
+        }
     });
-    if (!newNodes[targetNodeIndex].resources) newNodes[targetNodeIndex].resources = { fuel:0, ammo:0, food:0 };
-    Object.keys(resourcesToMove).forEach(key => {
-        const amount = resourcesToMove[key];
-        if (!newNodes[targetNodeIndex].resources[key]) newNodes[targetNodeIndex].resources[key] = 0;
-        newNodes[targetNodeIndex].resources[key] += amount;
+
+    if (!newNodes[targetNodeIndex].resources) {
+        newNodes[targetNodeIndex].resources = { fuel: 0, ammo: 0, food: 0 };
+    }
+
+    ['fuel', 'ammo', 'food'].forEach(key => {
+        const amount = resourcesToMove[key] || 0;
+        newNodes[targetNodeIndex].resources[key] = (newNodes[targetNodeIndex].resources[key] || 0) + amount;
     });
 
     if (transportType === 'truck') newResources.trucks -= 1;
@@ -592,11 +608,15 @@ const useGameStore = create(persist((set, get) => ({
   },
 
   toggleTransportMode: () => {
-    const current = get().gameState;
-    if (current === 'IDLE') set({ gameState: 'TRANSPORT_MODE', logs: [...get().logs, "🔧 Tryb Transportu: Wybierz połączenie."] });
-    else if (current === 'TRANSPORT_MODE') set({ gameState: 'IDLE', selectedEdgeIndex: null });
-    else if (current === 'TRANSPORT_DIALOG') set({ gameState: 'TRANSPORT_MODE', selectedEdgeIndex: null });
-  },
+    const { gameState, spendAction, logs } = get();
+    if (gameState === 'IDLE') {
+        if (spendAction()) {
+            set({ gameState: 'TRANSPORT_MODE', logs: [...logs, "🔧 Tryb Transportu: Wybierz połączenie. (-1 akcja)"] });
+        }
+    } else if (gameState === 'TRANSPORT_MODE' || gameState === 'TRANSPORT_DIALOG') {
+        set({ gameState: 'IDLE', selectedEdgeIndex: null }); 
+    }
+},
 
   selectTransportEdge: (edgeIndex) => {
     const { playerResources } = get();

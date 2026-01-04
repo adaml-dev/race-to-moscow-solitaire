@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import useGameStore from './store/gameStore';
 import './App.css';
+import TopBar from './components/TopBar';
 import { 
   TruckIcon, TrainIcon, TankIcon, AmmoIcon, FuelIcon, FoodIcon, 
   MedalIcon, HaltIcon, SovietIcon, FortIcon, VictoryIcon, 
@@ -26,15 +27,16 @@ const SolitaireActions = ({ store }) => {
   return (
     <div className="panel-section">
       <div className="panel-title">TURA {turn} - Akcje: {actionsLeft}</div>
-      <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
+      <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px'}}>
         { gameState === 'MOVE_ARMORED_ARMY' && moveCount > 0 ?
-          <button className="btn btn-success" onClick={() => finishMove()}>Zakończ Ruch</button> :
+          <button className="btn btn-success" onClick={() => finishMove()} style={{gridColumn: '1 / -1'}}>Zakończ Ruch</button> :
           <>
             <button className="btn btn-primary" onClick={() => store.setGameState('MOVE_FIELD_ARMIES')}>Ruch Armii Polowych</button>
             <button className="btn btn-primary" onClick={() => store.setGameState('MOVE_ARMORED_ARMY')}>Ruch Armii Pancernej</button>
-            <button className="btn btn-primary" onClick={() => store.toggleTransportMode()}>Transport Zaopatrzenia</button>
-            <button className="btn btn-primary" onClick={() => takeSupplies()}>Pobierz Zaopatrzenie</button>
-            <button className="btn btn-primary" onClick={() => takeTransport()}>Pobierz Transport</button>
+            <button className="btn btn-primary" onClick={() => store.toggleTransportMode()}>Transport</button>
+            <button className="btn btn-primary" onClick={() => store.setGameState('RESUPPLY_BASE')}>Uzupełnij Bazę</button>
+            <button className="btn btn-primary" onClick={() => takeSupplies()}>Weź Zaopatrzenie</button>
+            <button className="btn btn-primary" onClick={() => takeTransport()}>Weź Transport</button>
             <button className="btn btn-warning" onClick={() => endTurn()}>Zakończ Turę</button>
           </>
         }
@@ -187,7 +189,7 @@ function App() {
     </div>
   );
 
-  const renderActionContext = () => {
+const renderActionContext = () => {
     if (gameState === 'ENCOUNTER_RESOLVING' && activeCard) {
        const canAfford = activeCard.type === 'combat' && activeArmy.supplies.ammo >= activeCard.cost.ammo && activeArmy.supplies.fuel >= activeCard.cost.fuel;
        return (
@@ -240,33 +242,18 @@ function App() {
             </div>
         );
     }
-    return (
-        <div className="panel-section">
-            <div className="panel-title">Zasoby Globalne</div>
-            <div className="resource-row"><span style={{display: 'flex', alignItems: 'center', gap: '6px'}}><MedalIcon size={18} color="#eab308" /> Medale</span> <strong style={{color: '#eab308'}}>{playerResources.medals}</strong></div>
-            <div className="resource-row"><span style={{display: 'flex', alignItems: 'center', gap: '6px'}}><TruckIcon size={18} /> Ciężarówki</span> <strong>{playerResources.trucks}</strong></div>
-            <div className="resource-row"><span style={{display: 'flex', alignItems: 'center', gap: '6px'}}><TrainIcon size={18} /> Pociągi</span> <strong>{playerResources.trains}</strong></div>
-            <hr style={{borderColor: 'var(--border-color)', margin: '15px 0'}}/>
-            <div style={{color: '#a1a1aa', fontSize:'0.9em', marginBottom:'8px'}}>Baza Główna (Stock):</div>
-            <div style={{display:'flex', justifyContent:'space-around', gap: '8px'}}>
-              <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}><FuelIcon size={16} /> {playerResources.supplyStock.fuel}</span>
-              <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}><AmmoIcon size={16} /> {playerResources.supplyStock.ammo}</span>
-              <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}><FoodIcon size={16} /> {playerResources.supplyStock.food}</span>
-            </div>
-            <button className={`btn ${gameState === 'TRANSPORT_MODE' ? 'btn-warning' : 'btn-primary'}`} style={{marginTop: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'}} onClick={() => store.toggleTransportMode()}><ToolIcon size={16} />{gameState === 'TRANSPORT_MODE' ? 'ZAKOŃCZ TRANSPORT' : 'TRYB TRANSPORTU'}</button>
-        </div>
-    );
-  };
-
-  return (
+     return null;
+  }; return (
     <div className="app-container">
+      <TopBar />
+      <div className="app-main-content">
       <aside className="sidebar">
         <div className="sidebar-header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
             <span>RACE TO MOSCOW</span>
             <button className="btn btn-danger btn-sm" style={{width: 'auto', margin: 0, padding: '2px 8px', fontSize: '0.8em'}} onClick={handleNewGame} title="Zresetuj grę">NOWA GRA</button>
         </div>
 
-        <div className="sidebar-scroll-content">
+<div className="sidebar-scroll-content">
             <SolitaireActions store={store} />
             {gameState === 'RAILHEAD_ADVANCEMENT' && 
               <div className="panel-section">
@@ -287,12 +274,10 @@ function App() {
               </div>
             }
             {gameState === 'CONFIRM_FORCED_MARCH' ? <ForcedMarchConfirm store={store} /> : renderArmyStatus()}
-            {renderActionContext()}
-            <div className="panel-section"><div className="panel-title">Logi</div><div className="logs-container"><ul className="logs-list">{logs.slice().reverse().map((log, i) => <li key={i}>{log}</li>)}</ul></div></div>
         </div>
       </aside>
 
-      <main 
+      <main
         className="map-viewport"
         ref={mapViewportRef}
         onMouseDown={handleMouseDown}
@@ -404,17 +389,16 @@ function App() {
                         </div>
                     )}
 
-                    {node.type === 'main_supply_base' && (
-    <button 
-        className="btn btn-success btn-sm" 
-        // DODANO onMouseDown, aby zapobiec przeciąganiu mapy przy kliknięciu przycisku
-        onMouseDown={(e) => e.stopPropagation()}
-        onClick={() => store.resupplyBase(node.id)} 
-        style={{marginTop: '5px', fontSize: '0.7em', padding: '2px 5px'}}
-    >
-        + Uzupełnij
-    </button>
-)}
+                    {gameState === 'RESUPPLY_BASE' && node.type === 'main_supply_base' && (
+                        <button 
+                            className="btn btn-success" 
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={() => store.resupplyBase(node.id)} 
+                            style={{marginTop: '5px'}}
+                        >
+                            + UZUPEŁNIJ TUTAJ
+                        </button>
+                    )}
 
                     {activeArmy.location !== node.id && (gameState === 'MOVE_FIELD_ARMIES' || gameState === 'MOVE_ARMORED_ARMY') && isConnected && (
                         <div style={{ marginTop: '2px' }}>
@@ -449,6 +433,30 @@ function App() {
         </div>
 
       </main>
+<aside className="sidebar sidebar-right">
+        <div className="sidebar-scroll-content">
+            { gameState === 'RESUPPLY_BASE' ?
+                <div className="panel-section">
+                  <div className="panel-title">Uzupełnianie Bazy</div>
+                  <p style={{color: '#a1a1aa', fontSize: '0.9em'}}>Wybierz jedną z aktywnych baz zaopatrzeniowych na mapie, aby przenieść do niej 3 jednostki każdego typu zasobu ze składu głównego.</p>
+                  <p style={{color: '#eab308', fontSize: '0.9em', textAlign: 'center' , fontWeight: 'bold'}}>Ta akcja kosztuje 1 punkt akcji.</p>
+                  <button className="btn btn-danger" onClick={() => store.setGameState('IDLE')}>Anuluj</button>
+                </div> :
+            (renderActionContext() ? renderActionContext() : 
+              <div className="panel-section">
+                <div className="panel-title" style={{color: 'var(--text-secondary)'}}>Gotowi do działania!</div>
+                <p style={{color: '#a1a1aa', fontSize: '0.9em', textAlign: 'center'}}>Wybierz akcję z lewego panelu, aby rozpocząć.</p>
+              </div>
+            )}
+            <div className="panel-section panel-log">
+                <div className="panel-title">Log</div>
+                <div className="logs-container">
+                    <ol className="logs-list" reversed>{logs.slice().reverse().map((log, i) => <li key={i}>{log}</li>)}</ol>
+                </div>
+            </div>
+        </div>
+      </aside>
+      </div>
     </div>
   );
 }
