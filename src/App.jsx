@@ -1,6 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import useGameStore from './store/gameStore';
 import './App.css';
+import { 
+  TruckIcon, TrainIcon, TankIcon, AmmoIcon, FuelIcon, FoodIcon, 
+  MedalIcon, HaltIcon, SovietIcon, FortIcon, VictoryIcon, 
+  ArrowDownIcon, ArrowUpIcon, ArrowRightIcon, ToolIcon, 
+  CombatIcon, SupplyBoxIcon 
+} from './components/Icons';
 
 const getNodeCoords = (nodes, id, spacing) => {
   const node = nodes.find(n => n.id === id);
@@ -113,19 +119,19 @@ function App() {
         ))}
       </div>
       <div className="panel-title" style={{color: 'var(--accent-blue)'}}>Aktywna: {activeArmy.name}</div>
-      {activeArmy.isGrounded && <div style={{backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#fca5a5', border: '1px solid #ef4444', textAlign: 'center', padding: '10px', borderRadius: '6px', marginBottom: '15px', fontWeight: 'bold'}}>🛑 HALT (Brak żywności)</div>}
+      {activeArmy.isGrounded && <div style={{backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#fca5a5', border: '1px solid #ef4444', textAlign: 'center', padding: '10px', borderRadius: '6px', marginBottom: '15px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'}}><HaltIcon size={20} color="#fca5a5" /> HALT (Brak żywności)</div>}
       <div className="resource-row"><span style={{color: '#a1a1aa'}}>Lokalizacja</span><strong>{activeArmy.location.toUpperCase()}</strong></div>
       <div style={{backgroundColor: 'var(--bg-app)', padding: '10px', borderRadius: '6px', marginTop: '10px'}}>
-        <div style={{fontSize: '0.8em', color: '#71717a', marginBottom: '8px', display: 'flex', justifyContent: 'space-between'}}><span>DO MIASTA ⬇️</span><span>MAX 6</span><span>Z MIASTA ⬆️</span></div>
+        <div style={{fontSize: '0.8em', color: '#71717a', marginBottom: '8px', display: 'flex', justifyContent: 'space-between'}}><span style={{display: 'flex', alignItems: 'center', gap: '4px'}}><ArrowDownIcon size={12} /> DO MIASTA</span><span>MAX 6</span><span style={{display: 'flex', alignItems: 'center', gap: '4px'}}>Z MIASTA <ArrowUpIcon size={12} /></span></div>
         {['fuel', 'ammo', 'food'].map(res => {
-            const icon = res === 'fuel' ? '⛽' : (res === 'ammo' ? '💣' : '🍞');
+            const IconComponent = res === 'fuel' ? FuelIcon : (res === 'ammo' ? AmmoIcon : FoodIcon);
             const armyAmount = activeArmy.supplies[res] || 0;
             const cityAmount = currentLocationNode?.resources?.[res] || 0;
             return (
                 <div key={res} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px'}}>
-                    <button className="btn btn-sm" style={{width: '30px', backgroundColor: '#27272a'}} onClick={() => store.transferResource(activeArmy.id, res, 'TO_NODE')} disabled={armyAmount <= 0}>⬇️</button>
-                    <div style={{fontWeight: 'bold', width: '60px', textAlign: 'center'}}>{icon} {armyAmount}</div>
-                    <button className="btn btn-sm" style={{width: '30px', backgroundColor: '#27272a'}} onClick={() => store.transferResource(activeArmy.id, res, 'TO_ARMY')} disabled={cityAmount <= 0}>⬆️</button>
+                    <button className="btn btn-sm" style={{width: '30px', backgroundColor: '#27272a', display: 'flex', alignItems: 'center', justifyContent: 'center'}} onClick={() => store.transferResource(activeArmy.id, res, 'TO_NODE')} disabled={armyAmount <= 0}><ArrowDownIcon size={14} /></button>
+                    <div style={{fontWeight: 'bold', width: '80px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'}}><IconComponent size={18} /> {armyAmount}</div>
+                    <button className="btn btn-sm" style={{width: '30px', backgroundColor: '#27272a', display: 'flex', alignItems: 'center', justifyContent: 'center'}} onClick={() => store.transferResource(activeArmy.id, res, 'TO_ARMY')} disabled={cityAmount <= 0}><ArrowUpIcon size={14} /></button>
                 </div>
             )
         })}
@@ -138,9 +144,13 @@ function App() {
        const canAfford = activeCard.type === 'combat' && activeArmy.supplies.ammo >= activeCard.cost.ammo && activeArmy.supplies.fuel >= activeCard.cost.fuel;
        return (
          <div className="panel-section">
-            <div className="panel-title" style={{color: 'var(--accent-red)'}}>⚔️ SPOTKANIE</div>
-            <div style={{textAlign: 'center', marginBottom: '15px'}}><div style={{fontSize: '40px'}}>{activeCard.img}</div><h3 style={{margin: '5px 0'}}>{activeCard.name}</h3><p style={{fontSize: '0.9em', color: '#a1a1aa'}}>{activeCard.description}</p></div>
-            {activeCard.type === 'combat' && (<div><div className="resource-row"><span>Koszt:</span> <span>💣{activeCard.cost.ammo} ⛽{activeCard.cost.fuel}</span></div><button className="btn btn-success" onClick={() => store.resolveEncounter('fight')} disabled={!canAfford}>WALCZ</button><button className="btn btn-danger" onClick={() => store.resolveEncounter('retreat')}>ODWRÓT</button></div>)}
+            <div className="panel-title" style={{color: 'var(--accent-red)', display: 'flex', alignItems: 'center', gap: '8px'}}><CombatIcon size={18} color="var(--accent-red)" /> SPOTKANIE</div>
+            <div className="encounter-card">
+              <div style={{fontSize: '60px', margin: '10px 0'}}>{activeCard.img}</div>
+              <h3 style={{margin: '10px 0', fontFamily: 'Georgia, serif', fontSize: '1.3em'}}>{activeCard.name}</h3>
+              <p style={{fontSize: '0.9em', color: '#a1a1aa', lineHeight: '1.4'}}>{activeCard.description}</p>
+            </div>
+            {activeCard.type === 'combat' && (<div><div className="resource-row"><span>Koszt:</span> <span style={{display: 'flex', alignItems: 'center', gap: '8px'}}><AmmoIcon size={16} />{activeCard.cost.ammo} <FuelIcon size={16} />{activeCard.cost.fuel}</span></div><button className="btn btn-success" onClick={() => store.resolveEncounter('fight')} disabled={!canAfford}>WALCZ</button><button className="btn btn-danger" onClick={() => store.resolveEncounter('retreat')}>ODWRÓT</button></div>)}
             {activeCard.type === 'event' && activeCard.id !== 'mud' && <button className="btn btn-primary" onClick={() => store.resolveEncounter('ok')}>OK</button>}
             {activeCard.id === 'mud' && (<div><button className="btn btn-warning" onClick={() => store.resolveEncounter('pay_fuel')}>Zapłać 1 Paliwo</button><button className="btn btn-danger" onClick={() => store.resolveEncounter('retreat')}>Cofnij</button></div>)}
          </div>
@@ -168,8 +178,15 @@ function App() {
                 <label style={{fontSize:'0.85em', color:'#a1a1aa'}}>Pojazd:</label>
                 <select className="select-dark" value={transportForm.transportType} onChange={e => setTransportForm({...transportForm, transportType: e.target.value})}><option value="truck" disabled={playerResources.trucks < 1}>Ciężarówka ({playerResources.trucks})</option>{edge.transportType === 'rail' && <option value="train" disabled={playerResources.trains < 1}>Pociąg ({playerResources.trains})</option>}</select>
                 <div style={{display:'flex', gap:'5px', margin:'15px 0'}}><button className={`btn btn-sm ${transportForm.direction === 'target-to-source' ? 'btn-primary' : ''}`} onClick={() => setTransportForm({...transportForm, direction: 'target-to-source', fuel:0, ammo:0, food:0})}>{sourceNode.name}</button><span style={{alignSelf:'center'}}>➡</span><button className={`btn btn-sm ${transportForm.direction === 'source-to-target' ? 'btn-primary' : ''}`} onClick={() => setTransportForm({...transportForm, direction: 'source-to-target', fuel:0, ammo:0, food:0})}>{targetNode.name}</button></div>
-                <p style={{fontSize:'0.9em'}}>W magazynie ({fromNode.name}): ⛽{(fromNode.resources?.fuel||0)} 💣{(fromNode.resources?.ammo||0)} 🍞{(fromNode.resources?.food||0)}</p>
-                {['fuel', 'ammo', 'food'].map(res => (<div key={res} className="resource-row"><span>{res === 'fuel' ? '⛽' : (res === 'ammo' ? '💣' : '🍞')}</span><div><button className="btn btn-sm" onClick={() => setTransportForm({...transportForm, [res]: Math.max(0, transportForm[res]-1)})}>-</button><span style={{margin: '0 10px', fontWeight: 'bold'}}>{transportForm[res]}</span><button className="btn btn-sm" onClick={() => increment(res)}>+</button></div></div>))}
+                <p style={{fontSize:'0.9em', display: 'flex', gap: '12px', justifyContent: 'center'}}>
+                  <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}><FuelIcon size={14} />{(fromNode.resources?.fuel||0)}</span>
+                  <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}><AmmoIcon size={14} />{(fromNode.resources?.ammo||0)}</span>
+                  <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}><FoodIcon size={14} />{(fromNode.resources?.food||0)}</span>
+                </p>
+                {['fuel', 'ammo', 'food'].map(res => { 
+                  const ResourceIcon = res === 'fuel' ? FuelIcon : (res === 'ammo' ? AmmoIcon : FoodIcon);
+                  return (<div key={res} className="resource-row"><span style={{display: 'flex', alignItems: 'center', gap: '6px'}}><ResourceIcon size={16} /></span><div><button className="btn btn-sm" onClick={() => setTransportForm({...transportForm, [res]: Math.max(0, transportForm[res]-1)})}>-</button><span style={{margin: '0 10px', fontWeight: 'bold'}}>{transportForm[res]}</span><button className="btn btn-sm" onClick={() => increment(res)}>+</button></div></div>)
+                })}
                 <div style={{textAlign:'center', margin:'10px 0', fontSize:'0.9em', color: currentLoad === capacity ? 'orange' : 'inherit'}}>Ładunek: {currentLoad} / {capacity}</div>
                 <button className="btn btn-success" onClick={handleConfirm} disabled={currentLoad === 0 || !canAffordTransport} title={!canAffordTransport ? "Brak pojazdów tego typu!" : "Wyślij"}>WYŚLIJ</button> <button className="btn btn-danger" onClick={() => store.toggleTransportMode()}>ANULUJ</button>
             </div>
@@ -178,13 +195,17 @@ function App() {
     return (
         <div className="panel-section">
             <div className="panel-title">Zasoby Globalne</div>
-            <div className="resource-row"><span>🎖️ Medale</span> <strong style={{color: '#eab308'}}>{playerResources.medals}</strong></div>
-            <div className="resource-row"><span>🚚 Ciężarówki</span> <strong>{playerResources.trucks}</strong></div>
-            <div className="resource-row"><span>🚂 Pociągi</span> <strong>{playerResources.trains}</strong></div>
+            <div className="resource-row"><span style={{display: 'flex', alignItems: 'center', gap: '6px'}}><MedalIcon size={18} color="#eab308" /> Medale</span> <strong style={{color: '#eab308'}}>{playerResources.medals}</strong></div>
+            <div className="resource-row"><span style={{display: 'flex', alignItems: 'center', gap: '6px'}}><TruckIcon size={18} /> Ciężarówki</span> <strong>{playerResources.trucks}</strong></div>
+            <div className="resource-row"><span style={{display: 'flex', alignItems: 'center', gap: '6px'}}><TrainIcon size={18} /> Pociągi</span> <strong>{playerResources.trains}</strong></div>
             <hr style={{borderColor: 'var(--border-color)', margin: '15px 0'}}/>
-            <div style={{color: '#a1a1aa', fontSize:'0.9em', marginBottom:'5px'}}>Baza Główna (Stock):</div>
-            <div style={{display:'flex', justifyContent:'space-around'}}><span>⛽ {playerResources.supplyStock.fuel}</span><span>💣 {playerResources.supplyStock.ammo}</span><span>🍞 {playerResources.supplyStock.food}</span></div>
-            <button className={`btn ${gameState === 'TRANSPORT_MODE' ? 'btn-warning' : 'btn-primary'}`} style={{marginTop: '20px'}} onClick={() => store.toggleTransportMode()}>{gameState === 'TRANSPORT_MODE' ? '❌ ZAKOŃCZ TRANSPORT' : '🔧 TRYB TRANSPORTU'}</button>
+            <div style={{color: '#a1a1aa', fontSize:'0.9em', marginBottom:'8px'}}>Baza Główna (Stock):</div>
+            <div style={{display:'flex', justifyContent:'space-around', gap: '8px'}}>
+              <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}><FuelIcon size={16} /> {playerResources.supplyStock.fuel}</span>
+              <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}><AmmoIcon size={16} /> {playerResources.supplyStock.ammo}</span>
+              <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}><FoodIcon size={16} /> {playerResources.supplyStock.food}</span>
+            </div>
+            <button className={`btn ${gameState === 'TRANSPORT_MODE' ? 'btn-warning' : 'btn-primary'}`} style={{marginTop: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'}} onClick={() => store.toggleTransportMode()}><ToolIcon size={16} />{gameState === 'TRANSPORT_MODE' ? 'ZAKOŃCZ TRANSPORT' : 'TRYB TRANSPORTU'}</button>
         </div>
     );
   };
@@ -219,12 +240,48 @@ function App() {
               const start = getNodeCoords(nodes, edge.source, spacing);
               const end = getNodeCoords(nodes, edge.target, spacing);
               const isRail = edge.transportType === 'rail';
-              const lineColor = edge.placedTransport ? (edge.placedTransport === 'train' ? '#000' : '#ea580c') : (isRail ? '#71717a' : '#52525b');
+              const lineColor = edge.placedTransport ? (edge.placedTransport === 'train' ? '#8b8b8b' : '#ea580c') : (isRail ? '#71717a' : '#52525b');
+              
+              // Calculate control point for quadratic Bezier curve (adds organic feel)
+              const midX = (start.x + end.x) / 2;
+              const midY = (start.y + end.y) / 2;
+              const dx = end.x - start.x;
+              const dy = end.y - start.y;
+              const offset = Math.sqrt(dx*dx + dy*dy) * 0.15; // 15% curve offset
+              const controlX = midX - dy * offset / Math.sqrt(dx*dx + dy*dy);
+              const controlY = midY + dx * offset / Math.sqrt(dx*dx + dy*dy);
+              
+              const pathData = `M ${start.x} ${start.y} Q ${controlX} ${controlY} ${end.x} ${end.y}`;
+              
+              // Rail line decoration (crossties)
+              const railDecorations = [];
+              if (isRail && !edge.placedTransport) {
+                const segmentCount = 8;
+                for (let i = 1; i < segmentCount; i++) {
+                  const t = i / segmentCount;
+                  const x = (1-t)*(1-t)*start.x + 2*(1-t)*t*controlX + t*t*end.x;
+                  const y = (1-t)*(1-t)*start.y + 2*(1-t)*t*controlY + t*t*end.y;
+                  const angle = Math.atan2(end.y - start.y, end.x - start.x);
+                  railDecorations.push(
+                    <line key={i} x1={x-Math.sin(angle)*8} y1={y+Math.cos(angle)*8} x2={x+Math.sin(angle)*8} y2={y-Math.cos(angle)*8} stroke={lineColor} strokeWidth="2" opacity="0.6" />
+                  );
+                }
+              }
+              
               return (
                 <g key={index} style={{pointerEvents: 'auto', cursor: gameState === 'TRANSPORT_MODE' ? 'pointer' : 'default'}} onClick={() => gameState === 'TRANSPORT_MODE' && store.selectTransportEdge(index)}>
-                  <line x1={start.x} y1={start.y} x2={end.x} y2={end.y} stroke="transparent" strokeWidth="20" />
-                  <line x1={start.x} y1={start.y} x2={end.x} y2={end.y} stroke={lineColor} strokeWidth={edge.placedTransport ? "6" : "4"} strokeDasharray={(!edge.placedTransport && isRail) ? "10,5" : "0"} />
-                  {edge.placedTransport && <text x={(start.x + end.x)/2} y={(start.y + end.y)/2} fontSize="20" textAnchor="middle" dy="-5">{edge.placedTransport === 'train' ? '🚂' : '🚚'}</text>}
+                  {/* Invisible wide path for easier clicking */}
+                  <path d={pathData} stroke="transparent" strokeWidth="20" fill="none" />
+                  {/* Visible connection path */}
+                  <path d={pathData} stroke={lineColor} strokeWidth={edge.placedTransport ? "6" : "4"} fill="none" strokeDasharray={(!edge.placedTransport && !isRail) ? "8,4" : "0"} strokeLinecap="round" />
+                  {/* Rail crossties decoration */}
+                  {railDecorations}
+                  {/* Transport icon on path */}
+                  {edge.placedTransport && (
+                    <g transform={`translate(${midX - 12}, ${midY - 12})`}>
+                      {edge.placedTransport === 'train' ? <TrainIcon size={24} color="#fff" /> : <TruckIcon size={24} color="#ea580c" />}
+                    </g>
+                  )}
                 </g>
               );
             })}
@@ -255,16 +312,18 @@ function App() {
                 >
                     <strong style={{ display: 'block', marginBottom: '3px' }}>{node.name}</strong>
                     
-                    {node.medal && <span style={{fontSize: '1.2em', marginRight: '5px'}} title="Cel Medalowy">🎖️</span>}
-                    {node.isVictory && <span style={{fontSize: '1.2em'}} title="Cel Główny">⭐</span>}
-                    {node.type === 'fortified' && <span>🏰</span>}
-                    {node.sovietMarker && <span style={{color: 'var(--accent-red)', fontSize: '1.2em', textShadow: '0 0 5px red'}}>☭</span>}
+                    <div style={{display: 'flex', gap: '4px', justifyContent: 'center', alignItems: 'center', marginTop: '4px'}}>
+                      {node.medal && <MedalIcon size={18} color="#eab308" title="Cel Medalowy" />}
+                      {node.isVictory && <VictoryIcon size={18} color="#eab308" title="Cel Główny" />}
+                      {node.type === 'fortified' && <FortIcon size={18} color="var(--text-secondary)" />}
+                      {node.sovietMarker && <SovietIcon size={20} color="var(--accent-red)" />}
+                    </div>
                     
                     {(node.resources?.fuel > 0 || node.resources?.ammo > 0 || node.resources?.food > 0) && (
-                        <div style={{fontSize: '0.75em', backgroundColor: 'var(--bg-element)', borderRadius: '4px', padding: '2px', marginTop: '2px', border: '1px solid var(--accent-orange)'}}>
-                            {node.resources.fuel > 0 && <span>⛽{node.resources.fuel} </span>}
-                            {node.resources.ammo > 0 && <span>💣{node.resources.ammo} </span>}
-                            {node.resources.food > 0 && <span>🍞{node.resources.food} </span>}
+                        <div style={{fontSize: '0.75em', backgroundColor: 'var(--bg-element)', borderRadius: '4px', padding: '4px', marginTop: '4px', border: '1px solid var(--accent-orange)', display: 'flex', gap: '6px', justifyContent: 'center'}}>
+                            {node.resources.fuel > 0 && <span style={{display: 'flex', alignItems: 'center', gap: '2px'}}><FuelIcon size={12} />{node.resources.fuel}</span>}
+                            {node.resources.ammo > 0 && <span style={{display: 'flex', alignItems: 'center', gap: '2px'}}><AmmoIcon size={12} />{node.resources.ammo}</span>}
+                            {node.resources.food > 0 && <span style={{display: 'flex', alignItems: 'center', gap: '2px'}}><FoodIcon size={12} />{node.resources.food}</span>}
                         </div>
                     )}
 

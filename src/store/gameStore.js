@@ -152,7 +152,9 @@ const useGameStore = create(persist((set, get) => ({
 
       newNodes.forEach(node => {
           if (node.controller === null || node.sovietMarker) {
-              if (!node.isVictory && node.type !== 'main_supply_base') {
+              // NOWOŚĆ: Dodano warunek !node.isPartisan
+              // Partyzanci nie potrzebują zaopatrzenia, więc nie mogą być "okrążeni" z braku linii
+              if (!node.isVictory && node.type !== 'main_supply_base' && !node.isPartisan) {
                   if (!hasSupplyLine(node.id)) {
                       encircledNames.push(node.name);
                       if (node.sovietMarker) node.sovietMarker = false;
@@ -211,8 +213,18 @@ const useGameStore = create(persist((set, get) => ({
           target.controller = null; 
           target.sovietMarker = true; 
           target.resources = {}; 
-          newLogs.push(`⚠️ Wróg zajmuje ${target.name}!`);
+          
+          // NOWOŚĆ: Jeśli to partyzanci, oznacz ich specjalną flagą
+          if (frontCard.id === 'partisans') {
+              target.isPartisan = true;
+              newLogs.push(`⚠️ Partyzanci w mieście ${target.name}! (Ignorują zaopatrzenie)`);
+          } else {
+              newLogs.push(`⚠️ Wróg zajmuje ${target.name}!`);
+          }
+
           set({ nodes: newNodes, logs: newLogs });
+          
+          // Sprawdzamy okrążenie (ale teraz partyzanci będą bezpieczni dzięki zmianie poniżej)
           get().checkEncirclement(); 
       } else {
           newLogs.push(`ℹ️ Sowieci nie znaleźli dogodnego celu.`);
@@ -389,6 +401,7 @@ const useGameStore = create(persist((set, get) => ({
     if (!targetNode.sovietMarker && targetNode.controller !== army.owner) {
         const nodeIndex = newNodes.findIndex(n => n.id === targetNodeId);
         newNodes[nodeIndex].controller = army.owner;
+        newNodes[nodeIndex].isPartisan = false; // NOWOŚĆ: Czyścimy na wszelki wypadek
         drawnCard = drawCard(cardsData.pursuitDeck);
         if (wasMedal) get().awardMedal(targetNode.name);
     } else if (targetNode.sovietMarker) {
@@ -422,6 +435,7 @@ const useGameStore = create(persist((set, get) => ({
                 const nodeIndex = newNodes.findIndex(n => n.id === army.location);
                 const node = newNodes[nodeIndex];
                 node.sovietMarker = false;
+                node.isPartisan = false; // NOWOŚĆ: Czyścimy flagę partyzantów po walce
                 node.controller = army.owner;
                 if (node.medal) get().awardMedal(node.name);
 
