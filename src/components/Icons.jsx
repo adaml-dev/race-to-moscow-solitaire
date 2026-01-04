@@ -149,6 +149,12 @@ export const ArrowRightIcon = ({ size = 16, color = 'currentColor' }) => (
   </svg>
 );
 
+export const HandIcon = ({ size = 20, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={color} style={iconStyle}>
+    <path d="M21.72 9.03C21.05 7.64 19.53 7 18 7h-2.69l.95-4.58c.1-1.3-1.04-2.42-2.34-2.42-1.34 0-2.42 1.08-2.42 2.42l-.24 1.15-3.3 3.3c-.39.39-.39 1.02 0 1.41.39.39 1.02.39 1.41 0l3-3V19c0 1.1.9 2 2 2h6c1.1 0 2-.9 2-2v-8c0-.69-.28-1.32-.78-1.97zM3 21h4V9H3v12z"/>
+  </svg>
+);
+
 export const ToolIcon = ({ size = 20, color = 'currentColor' }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={iconStyle}>
     <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>

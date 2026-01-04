@@ -6,8 +6,43 @@ import {
   TruckIcon, TrainIcon, TankIcon, AmmoIcon, FuelIcon, FoodIcon, 
   MedalIcon, HaltIcon, SovietIcon, FortIcon, VictoryIcon, 
   ArrowDownIcon, ArrowUpIcon, ArrowRightIcon, ToolIcon, 
-  CombatIcon, SupplyBoxIcon 
+  CombatIcon, SupplyBoxIcon, HandIcon
 } from './components/Icons';
+
+const PlayerHand = ({ store }) => {
+  const { playerResources, playCardFromHand } = store;
+
+  if (!playerResources.hand || playerResources.hand.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="panel-section">
+      <div className="panel-title" style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+        <HandIcon size={16} /> Ręka
+      </div>
+      {playerResources.hand.map(card => (
+        <div key={card.id} className="hand-card">
+          <span>{card.name}</span>
+          <button className="btn btn-sm btn-primary" onClick={() => playCardFromHand(card.id)}>Zagraj</button>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const PeekingDeckChoice = ({ store }) => {
+  return (
+    <div className="panel-section">
+      <div className="panel-title">Podejrzyj Talię</div>
+      <p>Wybierz, którą talię chcesz podejrzeć.</p>
+      <div style={{display: 'flex', justifyContent: 'space-around'}}>
+        <button className="btn btn-primary" onClick={() => store.peekAtDeck('soviet')}>Talia Sowietów</button>
+        <button className="btn btn-primary" onClick={() => store.peekAtDeck('pursuit')}>Talia Pościgu</button>
+      </div>
+    </div>
+  );
+};
 
 const ForcedMarchConfirm = ({ store }) => (
   <div className="panel-section">
@@ -16,6 +51,17 @@ const ForcedMarchConfirm = ({ store }) => (
     <div style={{display: 'flex', justifyContent: 'space-around'}}>
       <button className="btn btn-success" onClick={() => store.confirmForcedMarch(true)}>Tak</button>
       <button className="btn btn-danger" onClick={() => store.confirmForcedMarch(false)}>Nie</button>
+    </div>
+  </div>
+);
+
+const ContinueMoveConfirm = ({ store }) => (
+  <div className="panel-section">
+    <div className="panel-title">Kontynuuj Ruch</div>
+    <p>Czy chcesz wydać 1 paliwo, aby kontynuować ruch?</p>
+    <div style={{display: 'flex', justifyContent: 'space-around'}}>
+      <button className="btn btn-success" onClick={() => store.confirmContinueMove(true)}>Tak</button>
+      <button className="btn btn-danger" onClick={() => store.confirmContinueMove(false)}>Nie</button>
     </div>
   </div>
 );
@@ -190,6 +236,10 @@ function App() {
   );
 
 const renderActionContext = () => {
+    if (gameState === 'PEEKING_DECK_CHOICE') {
+      return <PeekingDeckChoice store={store} />;
+    }
+
     if (gameState === 'ENCOUNTER_RESOLVING' && activeCard) {
        const canAfford = activeCard.type === 'combat' && activeArmy.supplies.ammo >= activeCard.cost.ammo && activeArmy.supplies.fuel >= activeCard.cost.fuel;
        return (
@@ -255,6 +305,7 @@ const renderActionContext = () => {
 
 <div className="sidebar-scroll-content">
             <SolitaireActions store={store} />
+            <PlayerHand store={store} />
             {gameState === 'RAILHEAD_ADVANCEMENT' && 
               <div className="panel-section">
                 <div className="panel-title">Postęp Kolei</div>
@@ -273,7 +324,7 @@ const renderActionContext = () => {
                 <button className="btn btn-secondary" onClick={() => store.sovietReaction()}>Pomiń</button>
               </div>
             }
-            {gameState === 'CONFIRM_FORCED_MARCH' ? <ForcedMarchConfirm store={store} /> : renderArmyStatus()}
+            {gameState === 'CONFIRM_FORCED_MARCH' ? <ForcedMarchConfirm store={store} /> : (gameState === 'CONFIRM_CONTINUE_MOVE' ? <ContinueMoveConfirm store={store} /> : renderArmyStatus())}
         </div>
       </aside>
 

@@ -3,7 +3,24 @@ import { persist } from 'zustand/middleware';
 import initialMap from '../data/map.json';
 import cardsData from '../data/cards.json';
 
-const drawCard = (deck) => deck[Math.floor(Math.random() * deck.length)];
+// Helper function to shuffle an array using Fisher-Yates algorithm
+const shuffle = (array) => {
+  let currentIndex = array.length,  randomIndex;
+
+  // While there remain elements to shuffle.
+  while (currentIndex > 0) {
+
+    // Pick a remaining element.
+    randomIndex = Math.floor(Math.random() * currentIndex);
+    currentIndex--;
+
+    // And swap it with the current element.
+    [array[currentIndex], array[randomIndex]] = [
+      array[randomIndex], array[currentIndex]];
+  }
+
+  return array;
+}
 
 const useGameStore = create(persist((set, get) => ({
   
@@ -25,7 +42,8 @@ const useGameStore = create(persist((set, get) => ({
     trucks: 5,
     trains: 3,
     supplyStock: { fuel: 20, ammo: 20, food: 20 },
-    medals: 0
+    medals: 0,
+    hand: [] // For retaining cards like Recon and Axis Auxiliaries
   },
 
   gameState: 'IDLE', 
@@ -47,7 +65,9 @@ const useGameStore = create(persist((set, get) => ({
     sovietMarkerPool: 3,
     transportReserve: 4,
     sovietDeck: [],
+    pursuitDeck: [],
     moveCount: 0,
+    playedAxisAuxiliaries: false, // Rule 9.10, only one per turn
   },
 
   // --- AKCJA RESETU GRY ---
@@ -71,10 +91,11 @@ const useGameStore = create(persist((set, get) => ({
       return { ...a, isGrounded: false };
     });
 
-    // Create and shuffle Soviet deck
+    // Create and shuffle Soviet deck according to rules (6.7)
     const greenCards = cardsData.sovietDeck.filter(c => c.era === 'green');
     const blueCards = cardsData.sovietDeck.filter(c => c.era === 'blue');
-    const shuffledSovietDeck = [...greenCards.sort(() => Math.random() - 0.5), ...blueCards.sort(() => Math.random() - 0.5)];
+    const shuffledSovietDeck = [...shuffle(greenCards), ...shuffle(blueCards)];
+    const shuffledPursuitDeck = shuffle(cardsData.pursuitDeck);
 
 
     set({
@@ -87,6 +108,9 @@ const useGameStore = create(persist((set, get) => ({
         sovietMarkerPool: 3,
         transportReserve: 4,
         sovietDeck: shuffledSovietDeck,
+        pursuitDeck: shuffledPursuitDeck,
+        moveCount: 0,
+        playedAxisAuxiliaries: false,
       },
       playerResources: {
         trucks: 5,
@@ -248,64 +272,6 @@ const useGameStore = create(persist((set, get) => ({
       }
   },
 
-  triggerSovietReaction: () => {
-      const { nodes, edges, armies, logs } = get();
-      const newNodes = [...nodes];
-      const newLogs = [...logs];
-      const frontCard = drawCard(cardsData.frontDeck);
-      newLogs.push(`☭ SOWIECKA REAKCJA: ${frontCard.name}`);
-
-      let targetNodeIndex = -1;
-
-      if (frontCard.id === 'partisans') {
-          const validTargets = newNodes.filter(n => 
-              (n.controller === 'white' || n.controller === 'gray') && 
-              !armies.some(a => a.location === n.id) &&
-              n.type !== 'main_supply_base'
-          );
-          if (validTargets.length > 0) {
-              const target = validTargets[Math.floor(Math.random() * validTargets.length)];
-              targetNodeIndex = newNodes.indexOf(target);
-          }
-      } 
-      else {
-          const armyLocations = armies.map(a => a.location);
-          const neighbors = [];
-          edges.forEach(e => {
-              if (armyLocations.includes(e.source)) neighbors.push(e.target);
-              if (armyLocations.includes(e.target)) neighbors.push(e.source);
-          });
-          const validTargets = newNodes.filter(n => neighbors.includes(n.id) && n.controller === null && !n.sovietMarker);
-          if (validTargets.length > 0) {
-              const target = validTargets[Math.floor(Math.random() * validTargets.length)];
-              targetNodeIndex = newNodes.indexOf(target);
-          }
-      }
-
-      if (targetNodeIndex !== -1) {
-          const target = newNodes[targetNodeIndex];
-          target.controller = null; 
-          target.sovietMarker = true; 
-          target.resources = {}; 
-          
-          // NOWOŚĆ: Jeśli to partyzanci, oznacz ich specjalną flagą
-          if (frontCard.id === 'partisans') {
-              target.isPartisan = true;
-              newLogs.push(`⚠️ Partyzanci w mieście ${target.name}! (Ignorują zaopatrzenie)`);
-          } else {
-              newLogs.push(`⚠️ Wróg zajmuje ${target.name}!`);
-          }
-
-          set({ nodes: newNodes, logs: newLogs });
-          
-          // Sprawdzamy okrążenie (ale teraz partyzanci będą bezpieczni dzięki zmianie poniżej)
-          get().checkEncirclement(); 
-      } else {
-          newLogs.push(`ℹ️ Sowieci nie znaleźli dogodnego celu.`);
-          set({ logs: newLogs });
-      }
-  },
-
   triggerReorganization: () => {
       const { armies, playerResources, edges, logs } = get();
       const newArmies = [...armies];
@@ -343,7 +309,7 @@ const useGameStore = create(persist((set, get) => ({
       });
 
       set({ edges: newEdges, playerResources: newResources, armies: newArmies, logs: newLogs, gameState: 'IDLE' });
-      setTimeout(() => { get().triggerSovietReaction(); }, 1000);
+      setTimeout(() => { get().sovietReaction(); }, 1000);
   },
 
   transferResource: (armyId, resourceType, direction) => {
@@ -440,7 +406,7 @@ const useGameStore = create(persist((set, get) => ({
   },
 
   moveArmy: (armyId, targetNodeId) => {
-    const { armies, nodes, edges, gameState, spendAction, solitaire } = get();
+    const { armies, nodes, edges, gameState, solitaire } = get();
 
     // Check for correct army type first
     const army = armies.find(a => a.id === armyId);
@@ -451,7 +417,10 @@ const useGameStore = create(persist((set, get) => ({
 
     // Handle action spending
     if (gameState === 'MOVE_FIELD_ARMIES' || (gameState === 'MOVE_ARMORED_ARMY' && solitaire.moveCount === 0)) {
-      if (!spendAction()) return; // Stop if no actions left
+      if (solitaire.actionsLeft <= 0) {
+        set(state => ({ logs: [...state.logs, "⛔ Brak akcji! Zakończ turę."] }));
+        return;
+      }
     }
     
     const armyIndex = armies.findIndex(a => a.id === armyId);
@@ -466,6 +435,13 @@ const useGameStore = create(persist((set, get) => ({
       (edge.target === army.location && edge.source === targetNodeId)
     );
     if (!isConnected) return;
+
+    // Rule 5.1: Check for area color restriction
+    if (targetNode.color && targetNode.color !== army.owner) {
+        set(state => ({ logs: [...state.logs, `⛔ Armia ${army.owner} nie może wejść do obszaru koloru ${targetNode.color}.`] }));
+        return;
+    }
+
     if (army.type === 'armored' && (army.supplies.fuel || 0) < 1) {
       set(state => ({ logs: [...state.logs, `⛔ Brak paliwa na ruch!`] }));
       return;
@@ -488,20 +464,28 @@ const useGameStore = create(persist((set, get) => ({
 
     let drawnCard = null;
     let newNodes = JSON.parse(JSON.stringify(nodes));
+    let newSolitaireState = { ...solitaire };
     const wasMedal = targetNode.medal && targetNode.controller !== army.owner;
 
     if (!targetNode.sovietMarker && targetNode.controller !== army.owner) {
         const nodeIndex = newNodes.findIndex(n => n.id === targetNodeId);
         newNodes[nodeIndex].controller = army.owner;
         newNodes[nodeIndex].isPartisan = false;
-        drawnCard = drawCard(cardsData.pursuitDeck);
+        const [firstCard, ...restOfDeck] = newSolitaireState.pursuitDeck;
+        drawnCard = firstCard;
+        newSolitaireState.pursuitDeck = restOfDeck;
         if (wasMedal) get().awardMedal(targetNode.name);
     } else if (targetNode.sovietMarker) {
-        drawnCard = drawCard(cardsData.sovietDeck);
+        const [firstCard, ...restOfDeck] = newSolitaireState.sovietDeck;
+        drawnCard = firstCard;
+        newSolitaireState.sovietDeck = restOfDeck;
     }
 
     const nextGameState = drawnCard ? 'ENCOUNTER_RESOLVING' : (gameState === 'MOVE_ARMORED_ARMY' && solitaire.moveCount < 2) ? 'MOVE_ARMORED_ARMY' : 'IDLE';
 
+    // Decrement action if this is the first move (moveCount === 0) or field army move
+    const shouldDecrementAction = gameState === 'MOVE_FIELD_ARMIES' || (gameState === 'MOVE_ARMORED_ARMY' && solitaire.moveCount === 0);
+    
     set(state => ({
       armies: newArmies, 
       nodes: newNodes, 
@@ -510,8 +494,10 @@ const useGameStore = create(persist((set, get) => ({
       activeCard: drawnCard,
       gameState: nextGameState,
       solitaire: {
-        ...state.solitaire,
-        moveCount: gameState === 'MOVE_ARMORED_ARMY' ? state.solitaire.moveCount + 1 : 0
+        ...state.solitaire, // Keep the existing state
+        ...newSolitaireState, // Overwrite with deck changes
+        moveCount: gameState === 'MOVE_ARMORED_ARMY' ? state.solitaire.moveCount + 1 : 0,
+        actionsLeft: shouldDecrementAction ? state.solitaire.actionsLeft - 1 : state.solitaire.actionsLeft
       },
       logs: [...state.logs, `${army.name} wchodzi do ${targetNode.name}.`]
     }));
@@ -530,23 +516,86 @@ const useGameStore = create(persist((set, get) => ({
   },
 
   confirmForcedMarch: (decision) => {
-    const { armies, activeArmyId } = get();
+    const { armies, activeArmyId, logs } = get();
+    const army = armies.find(a => a.id === activeArmyId);
     if (decision) {
+      if (army.supplies.food > 0) {
         const newArmies = JSON.parse(JSON.stringify(armies));
         const armyIndex = newArmies.findIndex(a => a.id === activeArmyId);
         newArmies[armyIndex].supplies.food -= 1;
-        set({ armies: newArmies, gameState: 'MOVE_FIELD_ARMIES' });
-    } else {
+        set({
+          armies: newArmies,
+          gameState: 'MOVE_FIELD_ARMIES',
+          logs: [...logs, `🌾 Wydano 1 żywność na marsz forsowny.`]
+        });
+      } else {
+        set({ logs: [...logs, `⛔️ Brak żywności na marsz forsowny.`] });
         set({ gameState: 'IDLE' });
+      }
+    } else {
+      set({ gameState: 'IDLE' });
+    }
+  },
+
+  confirmContinueMove: (decision) => {
+    const { armies, activeArmyId, logs } = get();
+    const army = armies.find(a => a.id === activeArmyId);
+    if (decision) {
+      if (army.supplies.fuel > 0) {
+        set({
+          gameState: 'MOVE_ARMORED_ARMY',
+          logs: [...logs, `⛽️ Kontynuuj ruch (zużyjesz paliwo przy następnym ruchu).`]
+        });
+      } else {
+        set({ logs: [...logs, `⛔️ Brak paliwa, by kontynuować ruch.`] });
+        set({ gameState: 'IDLE' });
+      }
+    } else {
+      set({ gameState: 'IDLE' });
     }
   },
 
   resolveEncounter: (decision) => {
     const { activeCard, activeArmyId, armies, previousLocation, nodes, playerResources } = get();
+
     const armyIndex = armies.findIndex(a => a.id === activeArmyId);
     const army = armies[armyIndex];
     const newArmies = [...armies];
     const newNodes = [...nodes];
+
+    // Rule 9.10 - Card Retention
+    if (activeCard.hasHand) {
+      // Rule 9.6: After resolving the card, place player marker on captured area
+      const nodeIndex = newNodes.findIndex(n => n.id === army.location);
+      newNodes[nodeIndex].controller = army.owner;
+      newNodes[nodeIndex].sovietMarker = false;
+      newNodes[nodeIndex].isPartisan = false;
+      if (newNodes[nodeIndex].medal) get().awardMedal(newNodes[nodeIndex].name);
+
+      set(state => ({
+        playerResources: {
+          ...state.playerResources,
+          hand: [...state.playerResources.hand, activeCard],
+        },
+        nodes: newNodes,
+        gameState: 'IDLE',
+        activeCard: null,
+        logs: [...state.logs, `📥 Karta ${activeCard.name} dodana do ręki.`]
+      }));
+      
+      get().checkEncirclement();
+      get().checkVictoryCondition(army.location);
+
+      // After keeping the card, check for movement continuation
+      const movedArmy = get().armies.find(a => a.id === activeArmyId);
+      if (movedArmy.type === 'armored' && get().solitaire.moveCount < 3) {
+        // Allow armored to continue, no extra fuel cost here as per rule 9.8 for non-combat cards
+        set({ gameState: 'MOVE_ARMORED_ARMY' }); 
+      } else {
+        set({ gameState: 'IDLE' });
+      }
+      return;
+    }
 
     if (activeCard.type === 'combat') {
         if (decision === 'fight') {
@@ -561,9 +610,16 @@ const useGameStore = create(persist((set, get) => ({
                 node.controller = army.owner;
                 if (node.medal) get().awardMedal(node.name);
 
-                set(state => ({ gameState: 'IDLE', activeCard: null, armies: newArmies, nodes: newNodes, logs: [...state.logs, `⚔️ Zwycięstwo! Teren przejęty.`] }));
+                set(state => ({ activeCard: null, armies: newArmies, nodes: newNodes, logs: [...state.logs, `⚔️ Zwycięstwo! Teren przejęty.`] }));
                 get().checkEncirclement();
                 get().checkVictoryCondition(army.location);
+
+                const movedArmy = get().armies.find(a => a.id === activeArmyId);
+                if (movedArmy.type === 'armored' && get().solitaire.moveCount < 3) {
+                  set({ gameState: 'CONFIRM_CONTINUE_MOVE' });
+                } else {
+                  set({ gameState: 'IDLE' });
+                }
             }
         } else if (decision === 'retreat') {
             newArmies[armyIndex].location = previousLocation;
@@ -580,6 +636,8 @@ const useGameStore = create(persist((set, get) => ({
              newArmies[armyIndex].supplies.fuel -= 1;
              const nodeIndex = newNodes.findIndex(n => n.id === army.location);
              newNodes[nodeIndex].controller = army.owner;
+             newNodes[nodeIndex].sovietMarker = false;
+             newNodes[nodeIndex].isPartisan = false;
              if(newNodes[nodeIndex].medal) get().awardMedal(newNodes[nodeIndex].name);
              set(state => ({ gameState: 'IDLE', activeCard: null, armies: newArmies, nodes: newNodes, logs: [...state.logs, `Opłacono przejazd przez błoto.`] }));
              get().checkEncirclement();
@@ -588,6 +646,8 @@ const useGameStore = create(persist((set, get) => ({
             newArmies[armyIndex].supplies.ammo = (newArmies[armyIndex].supplies.ammo || 0) + 1;
              const nodeIndex = newNodes.findIndex(n => n.id === army.location);
              newNodes[nodeIndex].controller = army.owner;
+             newNodes[nodeIndex].sovietMarker = false;
+             newNodes[nodeIndex].isPartisan = false;
              if(newNodes[nodeIndex].medal) get().awardMedal(newNodes[nodeIndex].name);
              set(state => ({ gameState: 'IDLE', activeCard: null, armies: newArmies, nodes: newNodes, logs: [...state.logs, `Znaleziono amunicję.`] }));
              get().checkEncirclement();
@@ -596,59 +656,58 @@ const useGameStore = create(persist((set, get) => ({
             if (activeCard.effect === 'stop' && decision === 'retreat') {
                  newArmies[armyIndex].location = previousLocation;
             } else {
+                 // Rule 9.6: After resolving the card, place player marker on captured area
                  const nodeIndex = newNodes.findIndex(n => n.id === army.location);
                  newNodes[nodeIndex].controller = army.owner;
+                 newNodes[nodeIndex].sovietMarker = false;
+                 newNodes[nodeIndex].isPartisan = false;
                  if(newNodes[nodeIndex].medal) get().awardMedal(newNodes[nodeIndex].name);
                  get().checkEncirclement();
                  get().checkVictoryCondition(army.location);
             }
-            set(state => ({ gameState: 'IDLE', activeCard: null, armies: newArmies }));
+            set(state => ({ gameState: 'IDLE', activeCard: null, armies: newArmies, nodes: newNodes }));
         }
     }
   },
 
-  toggleTransportMode: () => {
-    const { gameState, spendAction, logs } = get();
-    if (gameState === 'IDLE') {
-        if (spendAction()) {
-            set({ gameState: 'TRANSPORT_MODE', logs: [...logs, "🔧 Tryb Transportu: Wybierz połączenie. (-1 akcja)"] });
-        }
-    } else if (gameState === 'TRANSPORT_MODE' || gameState === 'TRANSPORT_DIALOG') {
-        set({ gameState: 'IDLE', selectedEdgeIndex: null }); 
-    }
-},
+  triggerReorganization: () => {
+      const { armies, playerResources, edges, logs } = get();
+      const newArmies = [...armies];
+      const newEdges = [...edges];
+      const newResources = { ...playerResources };
+      const newLogs = [...logs, "⚠️ REORGANIZACJA TEATRU DZIAŁAŃ!"];
 
-  selectTransportEdge: (edgeIndex) => {
-    const { playerResources } = get();
-    if (playerResources.trucks === 0 && playerResources.trains === 0) {
-        set(state => ({ logs: [...state.logs, "⛔ Brak dostępnych pociągów i ciężarówek!"] }));
-        return;
-    }
-    set({ gameState: 'TRANSPORT_DIALOG', selectedEdgeIndex: edgeIndex });
-  },
+      let trucksReturned = 0;
+      let trainsReturned = 0;
 
-  setGameState: (newState) => {
-    if (newState === 'MOVE_ARMORED_ARMY' || newState === 'MOVE_FIELD_ARMIES') {
-      set(state => ({ gameState: newState, solitaire: { ...state.solitaire, moveCount: 0 } }));
-    } else {
-      set({ gameState: newState });
-    }
-  },
+      newEdges.forEach(edge => {
+          if (edge.placedTransport === 'truck') trucksReturned++;
+          if (edge.placedTransport === 'train') trainsReturned++;
+          edge.placedTransport = null;
+      });
 
-  finishMove: () => {
-    set(state => ({ gameState: 'IDLE', solitaire: { ...state.solitaire, moveCount: 0 } }));
-  },
+      newResources.trucks += trucksReturned;
+      newResources.trains += trainsReturned;
+      newLogs.push(`Powrót transportu: +${trucksReturned} 🚚, +${trainsReturned} 🚂.`);
 
-  // --- SOLITAIRE ACTIONS ---
-  spendAction: () => {
-    const { solitaire } = get();
-    if (solitaire.actionsLeft > 0) {
-      set({ solitaire: { ...solitaire, actionsLeft: solitaire.actionsLeft - 1 } });
-      return true;
-    } else {
-      set(state => ({ logs: [...state.logs, "⛔ Brak akcji w tej turze!"] }));
-      return false;
-    }
+      newArmies.forEach(army => {
+          if ((army.supplies.food || 0) > 0) {
+              army.supplies.food -= 1;
+              newLogs.push(`${army.name} zjada 1 🍞.`);
+          } else {
+              if (!army.isGrounded) {
+                  army.isGrounded = true;
+                  newLogs.push(`⛔ ${army.name} nie ma jedzenia! UZIEMIONA (HALT).`);
+                  if (newResources.medals > 0) {
+                      newResources.medals -= 1;
+                      newLogs.push(`📉 Utracono medal za złą logistykę.`);
+                  }
+              }
+          }
+      });
+
+      set({ edges: newEdges, playerResources: newResources, armies: newArmies, logs: newLogs, gameState: 'IDLE' });
+      setTimeout(() => { get().sovietReaction(); }, 1000);
   },
 
   takeSupplies: () => {
@@ -713,68 +772,162 @@ const useGameStore = create(persist((set, get) => ({
   // },
 
   sovietReaction: () => {
-    const { nodes, edges, armies, solitaire, logs } = get();
-    const newNodes = [...nodes];
-    const newLogs = [...logs];
-    let newSovietMarkerPool = solitaire.sovietMarkerPool;
+    const { nodes, edges, armies, solitaire, logs, endGame } = get();
+    const { chosenArmyGroup, sovietMarkerPool } = solitaire;
+    const newNodes = JSON.parse(JSON.stringify(nodes));
+    let newLogs = [...logs];
+    let newSovietMarkerPool = sovietMarkerPool;
 
-    const playerMarkers = newNodes.filter(n => n.controller === solitaire.chosenArmyGroup);
-    const armyLocations = armies.map(a => a.location);
-    const startingAreas = newNodes.filter(n => n.type === 'main_supply_base').map(n => n.id);
+    // 1. Determine Action: Counter-Attack or Place Marker (simplified logic)
+    // In a full game, this would be based on a player's specific Front Card.
+    // Here, we'll randomly choose one of the available front cards.
+    const frontCard = cardsData.frontDeck[Math.floor(Math.random() * cardsData.frontDeck.length)];
+    newLogs.push(`☭ Soviet Reaction: ${frontCard.name}`);
 
-    const validMarkersToRemove = playerMarkers.filter(marker => {
-      const isAdjacentToArmy = edges.some(e => 
-        (e.source === marker.id && armyLocations.includes(e.target)) || 
-        (e.target === marker.id && armyLocations.includes(e.source))
-      );
-      const isAdjacentToStartingArea = edges.some(e =>
-        (e.source === marker.id && startingAreas.includes(e.target)) ||
-        (e.target === marker.id && startingAreas.includes(e.source))
-      );
-      const isAdjacentToSoviet = edges.some(e => {
-        const otherId = e.source === marker.id ? e.target : e.source;
-        const otherNode = newNodes.find(n => n.id === otherId);
-        return otherNode && (otherNode.sovietMarker || otherNode.controller && otherNode.controller !== solitaire.chosenArmyGroup);
-      });
+    let actionTaken = false;
 
-      return !isAdjacentToArmy && !isAdjacentToStartingArea && isAdjacentToSoviet;
-    });
-
-    if (validMarkersToRemove.length > 0) {
-      const markerToRemove = validMarkersToRemove[Math.floor(Math.random() * validMarkersToRemove.length)];
-      const markerIndex = newNodes.findIndex(n => n.id === markerToRemove.id);
-      newNodes[markerIndex].controller = null;
-      newLogs.push(`☭ Sowiecka kontrofensywa! Utracono kontrolę nad ${markerToRemove.name}.`);
-    } else {
-      newLogs.push("☭ Sowieci nie byli w stanie przeprowadzić kontrofensywy.");
-    }
-
-    const newSolitaireState = { ...solitaire, turn: solitaire.turn + 1, actionsLeft: 2, sovietMarkerPool: newSovietMarkerPool };
-    set({ nodes: newNodes, logs: newLogs, solitaire: newSolitaireState });
-
-    //Soviet Marker Placement
-    const { drawSovietCard } = get();
-    drawSovietCard();
-  },
-  drawSovietCard: () => {
-    const { solitaire, nodes, logs } = get();
-    const { sovietDeck, sovietMarkerPool } = solitaire;
-    if (sovietMarkerPool <= 0) {
-        get().endGame("standard");
-        return;
-    }
-    const [card, ...restOfDeck] = sovietDeck;
-
-    const targetNode = nodes.find(node => node.id === card.target);
-    if (targetNode) {
-        const newNodes = [...nodes];
-        const nodeIndex = newNodes.findIndex(n => n.id === targetNode.id);
-        newNodes[nodeIndex].sovietMarker = true;
-        set({ 
-            nodes: newNodes, 
-            solitaire: { ...solitaire, sovietDeck: restOfDeck, sovietMarkerPool: sovietMarkerPool - 1 },
-            logs: [...logs, `☭ Sowieci wzmacniają ${targetNode.name}!`]
+    // Priority 1: Counter-Attack (if card allows)
+    if (frontCard.type === 'soviet_reaction' && frontCard.target !== 'neighbor_neutral') { // Simplified condition for counter-attacks
+        const armyLocations = armies.map(a => a.location);
+        const armyAndAdjacentLocations = new Set(armyLocations);
+        edges.forEach(edge => {
+            if (armyLocations.includes(edge.source)) armyAndAdjacentLocations.add(edge.target);
+            if (armyLocations.includes(edge.target)) armyAndAdjacentLocations.add(edge.source);
         });
+
+        const startingAreaIDs = new Set(newNodes.filter(n => n.isStartingArea).map(n => n.id));
+        
+        // Armies protect all adjacent areas, so add them to the "forbidden" set
+        const protectedLocations = new Set(armyAndAdjacentLocations);
+
+        const validTargets = newNodes.filter(n => {
+            // Must be player-controlled
+            if (n.controller !== chosenArmyGroup) return false;
+
+            // Cannot be in or adjacent to a starting area
+            if (startingAreaIDs.has(n.id)) return false;
+            const isAdjacentToStart = edges.some(edge => 
+                (edge.source === n.id && startingAreaIDs.has(edge.target)) ||
+                (edge.target === n.id && startingAreaIDs.has(edge.source))
+            );
+            if (isAdjacentToStart) return false;
+
+            // Cannot be underneath or adjacent to an army
+            if (protectedLocations.has(n.id)) return false;
+
+            // Must be adjacent to an uncontrolled area or a Soviet-marked area
+            const isAdjacentToSovietThreat = edges.some(edge => {
+                const otherNodeId = edge.source === n.id ? edge.target : edge.source;
+                const otherNode = newNodes.find(node => node.id === otherNodeId);
+                return otherNode && (otherNode.sovietMarker || otherNode.controller === null);
+            });
+            if (!isAdjacentToSovietThreat) return false;
+
+            return true;
+        });
+
+        if (validTargets.length > 0) {
+            const targetNode = validTargets[Math.floor(Math.random() * validTargets.length)];
+            const nodeIndex = newNodes.findIndex(n => n.id === targetNode.id);
+            newNodes[nodeIndex].controller = null;
+            newLogs.push(`💥 Counter-Attack! Soviets remove marker from ${targetNode.name}.`);
+            actionTaken = true;
+        }
+    }
+
+    // Priority 2: Place Soviet Marker (if counter-attack failed or not applicable)
+    if (!actionTaken) {
+        if (newSovietMarkerPool > 0) {
+            const sovietControlledAreas = newNodes.filter(n => n.sovietMarker).map(n => n.id);
+            const possiblePlacements = newNodes.filter(n => {
+                if (n.controller !== null) return false; // Cannot have a player marker
+
+                return edges.some(edge => {
+                    const otherNodeId = edge.source === n.id ? edge.target : edge.source;
+                    return sovietControlledAreas.includes(otherNodeId);
+                });
+            });
+
+            if (possiblePlacements.length > 0) {
+                const targetNode = possiblePlacements[Math.floor(Math.random() * possiblePlacements.length)];
+                const nodeIndex = newNodes.findIndex(n => n.id === targetNode.id);
+                newNodes[nodeIndex].sovietMarker = true;
+                newSovietMarkerPool -= 1;
+                newLogs.push(`➕ Soviets place a marker in ${targetNode.name}.`);
+                actionTaken = true;
+            } else {
+                 newSovietMarkerPool -= 1; // Discard marker to the box
+                 newLogs.push(`🚮 No valid placement for Soviet marker. It is discarded.`);
+                 actionTaken = true;
+            }
+        } else {
+             newLogs.push(`ℹ️ No more Soviet markers to place.`);
+        }
+    }
+
+    if (!actionTaken) {
+        newLogs.push(`ℹ️ Soviet forces could not take any action.`);
+    }
+    
+    // End of game check
+    if (newSovietMarkerPool <= 0) {
+      set({ nodes: newNodes, logs: newLogs });
+      endGame("standard");
+      return; 
+    }
+
+    const newSolitaireState = { ...solitaire, turn: solitaire.turn + 1, actionsLeft: 2, sovietMarkerPool: newSovietMarkerPool, playedAxisAuxiliaries: false };
+    set({ nodes: newNodes, logs: newLogs, solitaire: newSolitaireState });
+  },
+
+  playCardFromHand: (cardId) => {
+    const { playerResources, solitaire, logs } = get();
+    const cardIndex = playerResources.hand.findIndex(c => c.id === cardId);
+    if (cardIndex === -1) return;
+
+    const card = playerResources.hand[cardIndex];
+    const newHand = [...playerResources.hand];
+    newHand.splice(cardIndex, 1);
+
+    if (card.type === 'axis_auxiliaries') {
+      if (solitaire.playedAxisAuxiliaries) {
+        set({ logs: [...logs, "⛔ Już zagrałeś kartę Pomocników Osi w tej turze."] });
+        return;
+      }
+      set(state => ({
+        solitaire: { ...state.solitaire, actionsLeft: state.solitaire.actionsLeft + 1, playedAxisAuxiliaries: true },
+        playerResources: { ...state.playerResources, hand: newHand },
+        logs: [...logs, `✅ Zagrałeś ${card.name} i zyskałeś 1 akcję.`]
+      }));
+    } else if (card.type === 'recon') {
+      set(state => ({
+        playerResources: { ...state.playerResources, hand: newHand },
+        gameState: 'PEEKING_DECK_CHOICE', 
+        logs: [...logs, `✅ Zagrałeś ${card.name}. Wybierz talię do podejrzenia.`]
+      }));
+    }
+  },
+
+  peekAtDeck: (deckName) => {
+    const { solitaire, logs } = get();
+    let deck;
+    if (deckName === 'soviet') {
+      deck = solitaire.sovietDeck;
+    } else {
+      deck = solitaire.pursuitDeck;
+    }
+
+    if (deck.length > 0) {
+      const topCard = deck[0];
+      set({
+        logs: [...logs, `🔍 Karta na wierzchu talii ${deckName}: ${topCard.name}`],
+        gameState: 'IDLE'
+      });
+    } else {
+      set({
+        logs: [...logs, `ℹ️ Talia ${deckName} jest pusta.`],
+        gameState: 'IDLE'
+      });
     }
   },
   
@@ -786,6 +939,53 @@ const useGameStore = create(persist((set, get) => ({
             victoryMessage: `KONIEC GRY! Sowiecki znacznik zaopatrzenia wyczerpany. Twój wynik to ${playerResources.medals} medali.`
         });
     } 
+  },
+
+  // --- MISSING FUNCTIONS ---
+  setGameState: (newState) => {
+    const { solitaire } = get();
+    
+    // Reset moveCount when starting fresh armored movement
+    if (newState === 'MOVE_ARMORED_ARMY') {
+      set({ gameState: newState, solitaire: { ...solitaire, moveCount: 0 } });
+    } else {
+      set({ gameState: newState });
+    }
+  },
+
+  spendAction: () => {
+    const { solitaire, logs } = get();
+    if (solitaire.actionsLeft > 0) {
+      set({
+        solitaire: { ...solitaire, actionsLeft: solitaire.actionsLeft - 1 },
+      });
+      return true;
+    } else {
+      set({ logs: [...logs, "⛔ Brak akcji! Zakończ turę."] });
+      return false;
+    }
+  },
+
+  toggleTransportMode: () => {
+    const { gameState, spendAction } = get();
+    if (gameState === 'TRANSPORT_MODE') {
+      set({ gameState: 'IDLE', selectedEdgeIndex: null });
+    } else {
+      if (spendAction()) {
+        set({ gameState: 'TRANSPORT_MODE', selectedEdgeIndex: null });
+      }
+    }
+  },
+
+  selectTransportEdge: (edgeIndex) => {
+    set({ selectedEdgeIndex: edgeIndex, gameState: 'TRANSPORT_DIALOG' });
+  },
+
+  finishMove: () => {
+    set(state => ({
+      gameState: 'IDLE',
+      solitaire: { ...state.solitaire, moveCount: 0 }
+    }));
   }
 
 }), 

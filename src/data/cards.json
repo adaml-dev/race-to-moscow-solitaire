@@ -4,37 +4,41 @@
       "id": "infantry_1", 
       "name": "Piechota Sowiecka", 
       "type": "combat", 
-      "cost": { "ammo": 1, "fuel": 0 }, 
+      "cost": { "ammo": 2, "fuel": 0 }, 
       "img": "⭐",
-      "description": "Walka kosztuje: 1 Amunicji",
-      "medals": 0
+      "description": "Walka kosztuje: 2 Amunicji",
+      "medals": 0,
+      "era": "green"
     },
     { 
       "id": "infantry_2", 
       "name": "Piechota Sowiecka", 
       "type": "combat", 
-      "cost": { "ammo": 1, "fuel": 0 }, 
+      "cost": { "ammo": 2, "fuel": 0 }, 
       "img": "⭐",
-      "description": "Walka kosztuje: 1 Amunicji",
-      "medals": 0
+      "description": "Walka kosztuje: 2 Amunicji",
+      "medals": 0,
+      "era": "green"
     },
     { 
       "id": "shock", 
       "name": "Armia Uderzeniowa", 
       "type": "combat", 
-      "cost": { "ammo": 2, "fuel": 0 }, 
+      "cost": { "ammo": 3, "fuel": 0 }, 
       "img": "⭐⭐",
-      "description": "Walka kosztuje: 2 Amunicji",
-      "medals": 1
+      "description": "Walka kosztuje: 3 Amunicji",
+      "medals": 1,
+      "era": "green"
     },
     { 
       "id": "mech", 
       "name": "Korpus Zmechanizowany", 
       "type": "combat", 
-      "cost": { "ammo": 1, "fuel": 1 }, 
+      "cost": { "ammo": 2, "fuel": 1 }, 
       "img": "⚙️",
       "description": "Walka kosztuje: 1 Amunicji + 1 Paliwa",
-      "medals": 1
+      "medals": 1,
+      "era": "blue"
     },
     { 
       "id": "human_wave", 
@@ -43,16 +47,18 @@
       "cost": { "ammo": 3, "fuel": 0 }, 
       "img": "🌊",
       "description": "Walka kosztuje: 3 Amunicji",
-      "medals": 2
+      "medals": 2,
+      "era": "blue"
     },
     { 
       "id": "tank_corps", 
       "name": "Korpus Pancerny", 
       "type": "combat", 
-      "cost": { "ammo": 2, "fuel": 1 }, 
+      "cost": { "ammo": 3, "fuel": 1 }, 
       "img": "🛡️",
-      "description": "Walka kosztuje: 2 Amunicji + 1 Paliwa",
-      "medals": 2
+      "description": "Walka kosztuje: 3 Amunicji + 1 Paliwa",
+      "medals": 2,
+      "era": "blue"
     },
     {
       "id": "soviet_bombers",
@@ -60,7 +66,8 @@
       "type": "event",
       "effect": "stop",
       "img": "✈️",
-      "description": "Armia zatrzymuje się (Armia Pancerna może zapłacić 1 Paliwo by kontynuować)."
+      "description": "Armia zatrzymuje się (Armia Pancerna może zapłacić 1 Paliwo by kontynuować).",
+      "era": "green"
     },
     {
       "id": "mud_soviet",
@@ -68,7 +75,8 @@
       "type": "event",
       "effect": "stop",
       "img": "💧",
-      "description": "Armia zatrzymuje się (Armia Pancerna może zapłacić 1 Paliwo by kontynuować)."
+      "description": "Armia zatrzymuje się (Armia Pancerna może zapłacić 1 Paliwo by kontynuować).",
+      "era": "green"
     }
   ],
   "pursuitDeck": [
