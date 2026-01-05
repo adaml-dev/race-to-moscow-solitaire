@@ -67,7 +67,9 @@ const useGameStore = create(persist((set, get) => ({
   recentlyCaptured: [],
   
   // Rule 14.2: Track placements during current Transport Supplies action
-  transportActionState: { placedCount: 0 },
+  // spentAction: false means action not yet spent (user can cancel without cost)
+  // spentAction: true means first route selected (action spent, must finish or cancel)
+  transportActionState: { placedCount: 0, spentAction: false },
   
   logs: ["Gra rozpoczęta. Cel: Moskwa i Leningrad."],
 
@@ -367,31 +369,30 @@ const useGameStore = create(persist((set, get) => ({
   },
 
   executeTransport: (transportType, sourceId, targetId, resourcesToMove) => {
-    const { edges, nodes, selectedEdgeIndex, playerResources, solitaire } = get();
+    const { edges, nodes, selectedEdgeIndex, playerResources, solitaire, spendAction } = get();
     const edge = edges[selectedEdgeIndex];
 
-    // Rule 4.5 & 14.2: Check "Place" limit for transport placement
-    // Note: The action is spent when entering TRANSPORT_MODE, not per placement
+    // Rule 14.2: Track placements during current Transport Supplies action
     const limits = getLogisticsLimits(solitaire.logisticsLevel);
+    const transportState = get().transportActionState || { placedCount: 0, spentAction: false };
     
-    // Count transports placed DURING THIS ACTION (not all on board)
-    // We need to track how many have been placed in current transport action
-    const transportState = get().transportActionState || { placedCount: 0 };
+    // IMPORTANT: Spend action on FIRST route selection, not when entering transport mode
+    if (!transportState.spentAction) {
+      if (!spendAction()) {
+        set(state => ({ 
+          logs: [...state.logs, "⛔ Brak akcji do rozpoczęcia transportu!"],
+          gameState: 'IDLE',
+          selectedEdgeIndex: null,
+          transportActionState: { placedCount: 0, spentAction: false }
+        }));
+        return;
+      }
+    }
     
+    // Rule 14.2: Check placement limit for this action only (not total on board)
     if (transportState.placedCount >= limits.place) {
       set(state => ({
         logs: [...state.logs, `⛔ BŁĄD: Osiągnięto limit umieszczania transportu (${limits.place}) w tej akcji! (Zasada 4.5 & 14.2)`],
-        gameState: 'TRANSPORT_MODE'
-      }));
-      return;
-    }
-    
-    // Legacy check for total placed on board (keeps old functionality as additional safety)
-    const currentlyPlaced = edges.filter(e => e.hasTruck || e.hasTrain).length;
-    
-    if (currentlyPlaced >= limits.place) {
-      set(state => ({
-        logs: [...state.logs, `⛔ BŁĄD: Osiągnięto limit umieszczania transportu (${limits.place}) na poziomie logistycznym ${solitaire.logisticsLevel}! (Zasada 4.5)`],
         gameState: 'TRANSPORT_MODE'
       }));
       return;
@@ -465,8 +466,11 @@ const useGameStore = create(persist((set, get) => ({
     let shouldTriggerReorg = false;
     if (newResources.trains === 0) shouldTriggerReorg = true;
 
-    // Rule 14.2: Increment placement counter for current action
-    const newTransportState = { placedCount: transportState.placedCount + 1 };
+    // Rule 14.2: Increment placement counter and mark action as spent
+    const newTransportState = { 
+      placedCount: transportState.placedCount + 1, 
+      spentAction: true // Action is now spent, can't cancel without cost
+    };
 
     set(state => ({
         nodes: newNodes, 
@@ -475,7 +479,7 @@ const useGameStore = create(persist((set, get) => ({
         gameState: 'TRANSPORT_MODE',
         selectedEdgeIndex: null, 
         transportActionState: newTransportState,
-        logs: [...state.logs, `🚚 Transport (${transportType}) do ${newNodes[targetNodeIndex].name} wykonany. (${newTransportState.placedCount}/${limits.place})`]
+        logs: [...state.logs, `🚚 Transport (${transportType}) do ${newNodes[targetNodeIndex].name} wykonany. (${newTransportState.placedCount}/${limits.place}) ${newTransportState.placedCount === 1 ? '(-1 akcja)' : ''}`]
     }));
     if (shouldTriggerReorg) get().triggerReorganization();
   },
@@ -1099,22 +1103,39 @@ const useGameStore = create(persist((set, get) => ({
   },
 
   toggleTransportMode: () => {
-    const { gameState, spendAction, solitaire, logs } = get();
-    if (gameState === 'TRANSPORT_MODE') {
-      // Exiting transport mode - reset counter
-      set({ gameState: 'IDLE', selectedEdgeIndex: null, transportActionState: { placedCount: 0 } });
-    } else {
-      // Rule 14.2: Entering transport mode - spend action ONCE for the entire Transport Supplies action
-      if (!spendAction()) {
-        set(state => ({ logs: [...state.logs, "⛔ Brak akcji do rozpoczęcia transportu!"] }));
-        return;
+    const { gameState, solitaire, logs } = get();
+    const transportState = get().transportActionState || { placedCount: 0, spentAction: false };
+    
+    if (gameState === 'TRANSPORT_MODE' || gameState === 'TRANSPORT_DIALOG') {
+      // Exiting transport mode
+      if (transportState.spentAction) {
+        // Action was already spent (at least one route selected)
+        // User is finishing the transport action early
+        set({ 
+          gameState: 'IDLE', 
+          selectedEdgeIndex: null, 
+          transportActionState: { placedCount: 0, spentAction: false },
+          logs: [...logs, `✅ Zakończono akcję transportu (wykorzystano ${transportState.placedCount} tras).`]
+        });
+      } else {
+        // Action was not spent yet (no routes selected)
+        // User is canceling before first selection - no action cost
+        set({ 
+          gameState: 'IDLE', 
+          selectedEdgeIndex: null, 
+          transportActionState: { placedCount: 0, spentAction: false },
+          logs: [...logs, `❌ Anulowano akcję transportu (brak kosztu akcji).`]
+        });
       }
+    } else {
+      // Entering transport mode
+      // Don't spend action yet - will be spent on first route selection
       const limits = getLogisticsLimits(solitaire.logisticsLevel);
       set({ 
         gameState: 'TRANSPORT_MODE', 
         selectedEdgeIndex: null, 
-        transportActionState: { placedCount: 0 },
-        logs: [...logs, `🚚 Rozpoczęto akcję transportu. Możesz umieścić maksymalnie ${limits.place} jednostek.`]
+        transportActionState: { placedCount: 0, spentAction: false },
+        logs: [...logs, `🚚 Wybierz trasę transportu. Możesz umieścić maksymalnie ${limits.place} jednostek. (Akcja zostanie wydana po wyborze pierwszej trasy)`]
       });
     }
   },

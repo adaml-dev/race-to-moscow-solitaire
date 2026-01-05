@@ -67,9 +67,13 @@ const ContinueMoveConfirm = ({ store }) => (
 );
 
 const SolitaireActions = ({ store }) => {
-  const { solitaire, takeSupplies, takeTransport, endTurn, finishMove, gameState } = store;
+  const { solitaire, takeSupplies, takeTransport, endTurn, finishMove, gameState, transportActionState } = store;
   const { turn, actionsLeft, moveCount } = solitaire;
   const noActions = actionsLeft <= 0;
+  
+  // Block other actions if in transport mode after first route selection
+  const inTransportMode = gameState === 'TRANSPORT_MODE' || gameState === 'TRANSPORT_DIALOG';
+  const transportInProgress = inTransportMode && transportActionState?.spentAction;
 
   return (
     <div className="panel-section">
@@ -77,6 +81,17 @@ const SolitaireActions = ({ store }) => {
       <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px'}}>
         { gameState === 'MOVE_ARMORED_ARMY' && moveCount > 0 ?
           <button className="btn btn-success" onClick={() => finishMove()} style={{gridColumn: '1 / -1'}}>Zakończ Ruch</button> :
+          inTransportMode ?
+          <>
+            <button className="btn btn-warning" onClick={() => store.toggleTransportMode()} style={{gridColumn: '1 / -1'}}>
+              {transportInProgress ? '✅ Zakończ Transport' : '❌ Anuluj Transport'}
+            </button>
+            {transportInProgress && (
+              <p style={{gridColumn: '1 / -1', textAlign: 'center', fontSize: '0.85em', color: '#a1a1aa', margin: '5px 0'}}>
+                Wybierz kolejne trasy lub kliknij "Zakończ Transport"
+              </p>
+            )}
+          </> :
           <>
             <button className="btn btn-primary" onClick={() => store.setGameState('MOVE_FIELD_ARMIES')} disabled={noActions}>Ruch Armii Polowych</button>
             <button className="btn btn-primary" onClick={() => store.setGameState('MOVE_ARMORED_ARMY')} disabled={noActions}>Ruch Armii Pancernej</button>
