@@ -22,6 +22,16 @@ const shuffle = (array) => {
   return array;
 }
 
+// Helper function to get logistics limits based on level (Rule 4.5)
+const getLogisticsLimits = (level) => {
+  if (level === 1) {
+    return { take: 6, place: 3, possess: 9 };
+  } else if (level === 2) {
+    return { take: 8, place: 4, possess: 12 };
+  }
+  return { take: 6, place: 3, possess: 9 }; // Default to level 1
+};
+
 const useGameStore = create(persist((set, get) => ({
   
   // --- STAN UI (PERSISTED) ---
@@ -56,6 +66,9 @@ const useGameStore = create(persist((set, get) => ({
   selectedEdgeIndex: null,
   recentlyCaptured: [],
   
+  // Rule 14.2: Track placements during current Transport Supplies action
+  transportActionState: { placedCount: 0 },
+  
   logs: ["Gra rozpoczęta. Cel: Moskwa i Leningrad."],
 
   // --- SOLITAIRE GAME STATE ---
@@ -69,6 +82,7 @@ const useGameStore = create(persist((set, get) => ({
     pursuitDeck: [],
     moveCount: 0,
     playedAxisAuxiliaries: false, // Rule 9.10, only one per turn
+    logisticsLevel: 1, // Rule 4.5 & 6.6: Logistics Card level (1 or 2)
   },
 
   // --- AKCJA RESETU GRY ---
@@ -113,6 +127,7 @@ const useGameStore = create(persist((set, get) => ({
         pursuitDeck: shuffledPursuitDeck,
         moveCount: 0,
         playedAxisAuxiliaries: false,
+        logisticsLevel: 1, // Rule 6.6: Start at logistics level 1
       },
       playerResources: {
         trucks: 5,
@@ -122,7 +137,7 @@ const useGameStore = create(persist((set, get) => ({
       },
       gameState: 'IDLE',
       gameStatus: 'PLAYING',
-      logs: [`Gra solo rozpoczęta jako Grupa Armii ${armyGroup}.`],
+      logs: [`Gra solo rozpoczęta jako Grupa Armii ${armyGroup}. Poziom logistyczny: 1.`],
       activeCard: null,
       activeArmyId: null,
       previousLocation: null,
@@ -352,14 +367,32 @@ const useGameStore = create(persist((set, get) => ({
   },
 
   executeTransport: (transportType, sourceId, targetId, resourcesToMove) => {
-    const { edges, nodes, selectedEdgeIndex, playerResources, spendAction } = get();
+    const { edges, nodes, selectedEdgeIndex, playerResources, solitaire } = get();
     const edge = edges[selectedEdgeIndex];
 
-    if (!spendAction()) {
+    // Rule 4.5 & 14.2: Check "Place" limit for transport placement
+    // Note: The action is spent when entering TRANSPORT_MODE, not per placement
+    const limits = getLogisticsLimits(solitaire.logisticsLevel);
+    
+    // Count transports placed DURING THIS ACTION (not all on board)
+    // We need to track how many have been placed in current transport action
+    const transportState = get().transportActionState || { placedCount: 0 };
+    
+    if (transportState.placedCount >= limits.place) {
       set(state => ({
-        logs: [...state.logs, "⛔ Brak akcji do wykonania transportu!"],
-        gameState: 'IDLE',
-        selectedEdgeIndex: null,
+        logs: [...state.logs, `⛔ BŁĄD: Osiągnięto limit umieszczania transportu (${limits.place}) w tej akcji! (Zasada 4.5 & 14.2)`],
+        gameState: 'TRANSPORT_MODE'
+      }));
+      return;
+    }
+    
+    // Legacy check for total placed on board (keeps old functionality as additional safety)
+    const currentlyPlaced = edges.filter(e => e.hasTruck || e.hasTrain).length;
+    
+    if (currentlyPlaced >= limits.place) {
+      set(state => ({
+        logs: [...state.logs, `⛔ BŁĄD: Osiągnięto limit umieszczania transportu (${limits.place}) na poziomie logistycznym ${solitaire.logisticsLevel}! (Zasada 4.5)`],
+        gameState: 'TRANSPORT_MODE'
       }));
       return;
     }
@@ -432,9 +465,17 @@ const useGameStore = create(persist((set, get) => ({
     let shouldTriggerReorg = false;
     if (newResources.trains === 0) shouldTriggerReorg = true;
 
+    // Rule 14.2: Increment placement counter for current action
+    const newTransportState = { placedCount: transportState.placedCount + 1 };
+
     set(state => ({
-        nodes: newNodes, edges: newEdges, playerResources: newResources, gameState: 'TRANSPORT_MODE',
-        selectedEdgeIndex: null, logs: [...state.logs, `🚚 Transport (${transportType}) do ${newNodes[targetNodeIndex].name} wykonany.`]
+        nodes: newNodes, 
+        edges: newEdges, 
+        playerResources: newResources, 
+        gameState: 'TRANSPORT_MODE',
+        selectedEdgeIndex: null, 
+        transportActionState: newTransportState,
+        logs: [...state.logs, `🚚 Transport (${transportType}) do ${newNodes[targetNodeIndex].name} wykonany. (${newTransportState.placedCount}/${limits.place})`]
     }));
     if (shouldTriggerReorg) get().triggerReorganization();
   },
@@ -706,7 +747,7 @@ const useGameStore = create(persist((set, get) => ({
   },
 
   triggerReorganization: () => {
-      const { armies, playerResources, edges, logs } = get();
+      const { armies, playerResources, edges, logs, solitaire } = get();
       const newArmies = [...armies];
       const newEdges = [...edges];
       const newResources = { ...playerResources };
@@ -720,6 +761,7 @@ const useGameStore = create(persist((set, get) => ({
           if (edge.hasTrain) trainsReturned++;
           edge.hasTruck = false;
           edge.hasTrain = false;
+          edge.placedTransport = null;
       });
 
       newResources.trucks += trucksReturned;
@@ -742,7 +784,25 @@ const useGameStore = create(persist((set, get) => ({
           }
       });
 
-      set({ edges: newEdges, playerResources: newResources, armies: newArmies, logs: newLogs, gameState: 'IDLE' });
+      // Rule 17 & 4.5: Shift logistics level from 1 to 2 (one time only)
+      let newLogisticsLevel = solitaire.logisticsLevel;
+      if (solitaire.logisticsLevel === 1) {
+        newLogisticsLevel = 2;
+        newLogs.push(`📊 Poziom logistyczny wzrósł do poziomu 2! (Take=8, Place=4, Possess=12)`);
+        // Rule 17: Move extra trains from reserve to stock
+        // In solitaire: 2 + 2*1 = 4 trains
+        newResources.trains += 4;
+        newLogs.push(`🚂 +4 pociągi z rezerwy do stocku.`);
+      }
+
+      set({ 
+        edges: newEdges, 
+        playerResources: newResources, 
+        armies: newArmies, 
+        logs: newLogs, 
+        gameState: 'IDLE',
+        solitaire: { ...solitaire, logisticsLevel: newLogisticsLevel }
+      });
       setTimeout(() => { get().sovietReaction(); }, 1000);
   },
 
@@ -761,11 +821,42 @@ const useGameStore = create(persist((set, get) => ({
   },
 
   takeTransport: () => {
-    const { spendAction, playerResources, logs } = get();
-    if (spendAction()) {
+    const { spendAction, playerResources, logs, solitaire } = get();
+    if (!spendAction()) return;
+
+    // Rule 4.5 & 16: Check logistics limits
+    const limits = getLogisticsLimits(solitaire.logisticsLevel);
+    const currentPossessed = playerResources.trucks + playerResources.trains;
+    
+    // For simplicity, we'll take 2 trucks by default, but enforce limits
+    let trucksToTake = 2;
+    
+    // Check "Take" limit (maximum to take in one action)
+    if (trucksToTake > limits.take) {
+      set(state => ({
+        logs: [...state.logs, `⛔ BŁĄD: Możesz wziąć maksymalnie ${limits.take} jednostek transportu na poziomie logistycznym ${solitaire.logisticsLevel}! (Zasada 4.5)`]
+      }));
+      return;
+    }
+    
+    // Check "Possess" limit (maximum total to possess)
+    if (currentPossessed + trucksToTake > limits.possess) {
+      const canTake = limits.possess - currentPossessed;
+      if (canTake <= 0) {
+        set(state => ({
+          logs: [...state.logs, `⛔ BŁĄD: Osiągnięto limit posiadania ${limits.possess} jednostek transportu na poziomie logistycznym ${solitaire.logisticsLevel}! (Zasada 4.5)`]
+        }));
+        return;
+      }
+      trucksToTake = canTake;
       set({
-        playerResources: { ...playerResources, trucks: playerResources.trucks + 2 },
-        logs: [...logs, "🚚 Pobrano 2 ciężarówki do rezerwy."]
+        playerResources: { ...playerResources, trucks: playerResources.trucks + trucksToTake },
+        logs: [...logs, `🚚 Pobrano ${trucksToTake} ciężarówki do rezerwy (limit posiadania: ${limits.possess}).`]
+      });
+    } else {
+      set({
+        playerResources: { ...playerResources, trucks: playerResources.trucks + trucksToTake },
+        logs: [...logs, `🚚 Pobrano ${trucksToTake} ciężarówki do rezerwy.`]
       });
     }
   },
@@ -1008,11 +1099,23 @@ const useGameStore = create(persist((set, get) => ({
   },
 
   toggleTransportMode: () => {
-    const { gameState } = get();
+    const { gameState, spendAction, solitaire, logs } = get();
     if (gameState === 'TRANSPORT_MODE') {
-      set({ gameState: 'IDLE', selectedEdgeIndex: null });
+      // Exiting transport mode - reset counter
+      set({ gameState: 'IDLE', selectedEdgeIndex: null, transportActionState: { placedCount: 0 } });
     } else {
-      set({ gameState: 'TRANSPORT_MODE', selectedEdgeIndex: null });
+      // Rule 14.2: Entering transport mode - spend action ONCE for the entire Transport Supplies action
+      if (!spendAction()) {
+        set(state => ({ logs: [...state.logs, "⛔ Brak akcji do rozpoczęcia transportu!"] }));
+        return;
+      }
+      const limits = getLogisticsLimits(solitaire.logisticsLevel);
+      set({ 
+        gameState: 'TRANSPORT_MODE', 
+        selectedEdgeIndex: null, 
+        transportActionState: { placedCount: 0 },
+        logs: [...logs, `🚚 Rozpoczęto akcję transportu. Możesz umieścić maksymalnie ${limits.place} jednostek.`]
+      });
     }
   },
 

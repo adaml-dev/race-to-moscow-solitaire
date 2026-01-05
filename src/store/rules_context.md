@@ -137,6 +137,41 @@ The OKH deck and the revealed OKH pool are shared among all players.
 
 Each player has a Front card that determines the priority order for their Soviet Reaction at the end of their turn. You do not freely choose the reaction; you must follow the Front card priorities, with tie-break resolution by the player to your left.
 
+4.5 Logistic Cards
+
+Each player has one Logistic Card placed in front of them. This card represents the player’s current logistical capabilities at a given moment in the game.
+
+The card contains three values, each defining a different limit:
+
+Take
+The maximum total number of trucks and trains that the player may take from the transport track during the Take Transportation action.
+
+Place
+The maximum total number of trucks and trains that the player may place onto the board from their resources during the Transport Supplies action.
+
+Possess
+The maximum total number of trucks and trains that the player may have in their resources at any one time.
+
+Logistic Card – Front Side
+
+The front side of the card shows the current logistics values for Level 1. It includes:
+
+The logistics level indicator Level 1
+
+Three numeric limits corresponding to Take=6, Place=3, and Possess=9, shown with icons representing trucks and trains.
+
+These values define how many transport units the player can acquire, deploy, and store while this side of the card is active.
+
+This side is the active side during gameplay and directly affects the player’s available actions.
+
+Logistic Card – Back Side
+
+The back side of the card shows the alternative logistics level 2.
+
+It contains the same three limits, but with different values (Take=8, Place=4, Possess=12), reflecting a change in the player’s logistical capabilities.
+
+The card may be flipped when game effects, upgrades, or events change the player’s logistics level. Once flipped, the newly visible side becomes active and replaces the previous limits.
+
 5. The Game Board and Key Terms
 
 The map is point-to-point and includes:
