@@ -9,6 +9,17 @@ import {
   CombatIcon, SupplyBoxIcon, HandIcon
 } from './components/Icons';
 
+const ReorganizationConfirm = ({ store }) => (
+  <div className="panel-section">
+    <div className="panel-title">Reorganizacja Teatru Działań</div>
+    <p>Użycie ostatniego pociągu spowoduje Reorganizację Teatru Działań. Czy chcesz kontynuować?</p>
+    <div style={{display: 'flex', justifyContent: 'space-around'}}>
+      <button className="btn btn-success" onClick={() => store.confirmReorganization(true)}>Tak</button>
+      <button className="btn btn-danger" onClick={() => store.confirmReorganization(false)}>Nie</button>
+    </div>
+  </div>
+);
+
 const PlayerHand = ({ store }) => {
   const { playerResources, playCardFromHand } = store;
 
@@ -356,7 +367,7 @@ const renderActionContext = () => {
                 <button className="btn btn-secondary" onClick={() => store.sovietReaction()}>Pomiń</button>
               </div>
             }
-            {gameState === 'CONFIRM_FORCED_MARCH' ? <ForcedMarchConfirm store={store} /> : (gameState === 'CONFIRM_CONTINUE_MOVE' ? <ContinueMoveConfirm store={store} /> : renderArmyStatus())}
+            {gameState === 'CONFIRM_FORCED_MARCH' ? <ForcedMarchConfirm store={store} /> : (gameState === 'CONFIRM_CONTINUE_MOVE' ? <ContinueMoveConfirm store={store} /> : gameState === 'CONFIRM_REORGANIZATION' ? <ReorganizationConfirm store={store} /> : renderArmyStatus())}
         </div>
       </aside>
 
@@ -495,9 +506,15 @@ const renderActionContext = () => {
                         </div>
                     )}
 
-                    {armiesHere.map(army => (
-                        <div key={army.id} className={`army-token ${army.isGrounded ? 'halt' : ''}`} style={{cursor: 'pointer', border: selectedArmyId === army.id ? '2px solid white' : '1px solid rgba(255,255,255,0.2)', transform: selectedArmyId === army.id ? 'scale(1.05)' : 'scale(1)'}} onClick={(e) => { e.stopPropagation(); setSelectedArmyId(army.id); }} title="Kliknij, aby dowodzić tą armią">{army.name}</div>
-                    ))}
+                    {armiesHere.map(army => {
+                        const fuel = army.supplies.fuel || 0;
+                        const ammo = army.supplies.ammo || 0;
+                        const food = army.supplies.food || 0;
+                        const resourceCode = `${fuel}${ammo}${food}`;
+                        return (
+                            <div key={army.id} className={`army-token ${army.isGrounded ? 'halt' : ''}`} style={{cursor: 'pointer', border: selectedArmyId === army.id ? '2px solid white' : '1px solid rgba(255,255,255,0.2)', transform: selectedArmyId === army.id ? 'scale(1.05)' : 'scale(1)'}} onClick={(e) => { e.stopPropagation(); setSelectedArmyId(army.id); }} title="Kliknij, aby dowodzić tą armią">{army.name} {resourceCode}</div>
+                        );
+                    })}
                 </div>
             );
           })}

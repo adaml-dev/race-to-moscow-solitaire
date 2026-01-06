@@ -54,7 +54,7 @@
     { "source": "daugavpils", "target": "pskov", "transportType": "road" }
   ],
   "armies": [
-    { "id": "4_panzer", "name": "4. Panzer", "type": "armored", "location": "tilsit", "supplies": { "fuel": 3, "ammo": 3 }, "owner": "gray", "isGrounded": false },
-    { "id": "2_panzer", "name": "2. Panzer", "type": "armored", "location": "warschau", "supplies": { "fuel": 3, "ammo": 3 }, "owner": "white", "isGrounded": false }
+    { "id": "4_panzer", "name": "4th Panzer", "type": "armored", "location": "tilsit", "supplies": { "fuel": 3, "ammo": 3 }, "owner": "gray", "isGrounded": false },
+    { "id": "2_panzer", "name": "2nd Panzer", "type": "armored", "location": "warschau", "supplies": { "fuel": 3, "ammo": 3 }, "owner": "white", "isGrounded": false }
   ]
 }

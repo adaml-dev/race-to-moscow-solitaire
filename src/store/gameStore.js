@@ -32,6 +32,29 @@ const getLogisticsLimits = (level) => {
   return { take: 6, place: 3, possess: 9 }; // Default to level 1
 };
 
+// Helper function to create formatted log entries with timestamp
+const createLogEntry = (message, location = null, armyName = null) => {
+  const now = new Date();
+  const year = String(now.getFullYear()).slice(-2);
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  
+  const timestamp = `${year}${month}${day}${hours}${minutes}${seconds}`;
+  let prefix = timestamp;
+  
+  if (location || armyName) {
+    let context = [];
+    if (location) context.push(location);
+    if (armyName) context.push(armyName);
+    prefix += ` {${context.join(' - ')}}`;
+  }
+  
+  return `${prefix} ${message}`;
+};
+
 const useGameStore = create(persist((set, get) => ({
   
   // --- STAN UI (PERSISTED) ---
@@ -70,6 +93,7 @@ const useGameStore = create(persist((set, get) => ({
   // spentAction: false means action not yet spent (user can cancel without cost)
   // spentAction: true means first route selected (action spent, must finish or cancel)
   transportActionState: { placedCount: 0, spentAction: false },
+  transportToConfirm: null,
   
   logs: ["Gra rozpoczęta. Cel: Moskwa i Leningrad."],
 
@@ -292,7 +316,7 @@ const useGameStore = create(persist((set, get) => ({
   },
 
   triggerReorganization: () => {
-      const { armies, playerResources, edges, logs } = get();
+      const { armies, playerResources, edges, logs, solitaire } = get();
       const newArmies = [...armies];
       const newEdges = [...edges];
       const newResources = { ...playerResources };
@@ -334,29 +358,34 @@ const useGameStore = create(persist((set, get) => ({
   },
 
   transferResource: (armyId, resourceType, direction) => {
-    const { armies, nodes, logs } = get();
+    const { armies, nodes, addLog } = get();
     const armyIndex = armies.findIndex(a => a.id === armyId);
     const army = armies[armyIndex];
     const nodeIndex = nodes.findIndex(n => n.id === army.location);
     const node = nodes[nodeIndex];
     const newArmies = [...armies];
     const newNodes = [...nodes];
-    const newLogs = [...logs];
     const armyLoad = (army.supplies.fuel||0) + (army.supplies.ammo||0) + (army.supplies.food||0);
+
+    const resourceIcons = { fuel: '⛽', ammo: '💣', food: '🍞' };
+    const icon = resourceIcons[resourceType] || '';
 
     if (direction === 'TO_ARMY') {
         if (!node.resources || (node.resources[resourceType] || 0) <= 0) return;
         if (resourceType === 'food' && army.isGrounded) {
             newNodes[nodeIndex].resources.food -= 1;
             newArmies[armyIndex].isGrounded = false;
-            newLogs.push(`🍞 Dostarczono żywność do ${army.name}. HALT zdjęty!`);
+            set({ armies: newArmies, nodes: newNodes });
+            addLog(`${icon} Załadowano 1 żywność. HALT zdjęty!`, node.name, army.name);
         } else {
             if (armyLoad >= 6) {
-                set(state => ({ logs: [...state.logs, "⛔ Armia pełna! Max 6 żetonów."] }));
+                addLog("⛔ Armia pełna! Max 6 żetonów.", node.name, army.name);
                 return;
             }
             newNodes[nodeIndex].resources[resourceType] -= 1;
             newArmies[armyIndex].supplies[resourceType] = (newArmies[armyIndex].supplies[resourceType] || 0) + 1;
+            set({ armies: newArmies, nodes: newNodes });
+            addLog(`${icon} Załadowano 1 ${resourceType} do armii.`, node.name, army.name);
         }
     } else if (direction === 'TO_NODE') {
         if ((army.supplies[resourceType] || 0) <= 0) return;
@@ -364,56 +393,64 @@ const useGameStore = create(persist((set, get) => ({
         if (!newNodes[nodeIndex].resources) newNodes[nodeIndex].resources = { fuel:0, ammo:0, food:0 };
         if (!newNodes[nodeIndex].resources[resourceType]) newNodes[nodeIndex].resources[resourceType] = 0;
         newNodes[nodeIndex].resources[resourceType] += 1;
+        set({ armies: newArmies, nodes: newNodes });
+        addLog(`${icon} Wyładowano 1 ${resourceType} z armii.`, node.name, army.name);
     }
-    set({ armies: newArmies, nodes: newNodes, logs: newLogs });
   },
 
-  executeTransport: (transportType, sourceId, targetId, resourcesToMove) => {
-    const { edges, nodes, selectedEdgeIndex, playerResources, solitaire, spendAction } = get();
+  executeTransport: (transportType, sourceId, targetId, resourcesToMove, confirmed = false) => {
+    const { edges, nodes, selectedEdgeIndex, playerResources, solitaire, spendAction, addLog, setGameState } = get();
     const edge = edges[selectedEdgeIndex];
 
     // Rule 14.2: Track placements during current Transport Supplies action
     const limits = getLogisticsLimits(solitaire.logisticsLevel);
     const transportState = get().transportActionState || { placedCount: 0, spentAction: false };
     
+    const isReorg = playerResources.trains === 1 && transportType === 'train' && !confirmed;
     // IMPORTANT: Spend action on FIRST route selection, not when entering transport mode
-    if (!transportState.spentAction) {
+    if (!transportState.spentAction && !isReorg) {
       if (!spendAction()) {
-        set(state => ({ 
-          logs: [...state.logs, "⛔ Brak akcji do rozpoczęcia transportu!"],
+        addLog("⛔ Brak akcji do rozpoczęcia transportu!");
+        set({ 
           gameState: 'IDLE',
           selectedEdgeIndex: null,
           transportActionState: { placedCount: 0, spentAction: false }
-        }));
+        });
         return;
       }
     }
     
     // Rule 14.2: Check placement limit for this action only (not total on board)
     if (transportState.placedCount >= limits.place) {
-      set(state => ({
-        logs: [...state.logs, `⛔ BŁĄD: Osiągnięto limit umieszczania transportu (${limits.place}) w tej akcji! (Zasada 4.5 & 14.2)`],
-        gameState: 'TRANSPORT_MODE'
-      }));
+      addLog(`⛔ BŁĄD: Osiągnięto limit umieszczania transportu (${limits.place}) w tej akcji! (Zasada 4.5 & 14.2)`);
+      set({ gameState: 'TRANSPORT_MODE' });
       return;
     }
 
     if (transportType === 'truck' && playerResources.trucks <= 0) {
-        set(state => ({ logs: [...state.logs, "⛔ BŁĄD: Brak ciężarówek!"] }));
+        addLog("⛔ BŁĄD: Brak ciężarówek!");
         return;
     }
     if (transportType === 'train' && playerResources.trains <= 0) {
-        set(state => ({ logs: [...state.logs, "⛔ BŁĄD: Brak pociągów!"] }));
+        addLog("⛔ BŁĄD: Brak pociągów!");
         return;
+    }
+
+    if (transportType === 'train' && playerResources.trains === 1 && !confirmed) {
+      set({
+        gameState: 'CONFIRM_REORGANIZATION',
+        transportToConfirm: { transportType, sourceId, targetId, resourcesToMove }
+      });
+      return;
     }
 
     // Rule 14.6: Check stacking restrictions
     if (transportType === 'truck' && edge.hasTruck) {
-        set(state => ({ logs: [...state.logs, "⛔ BŁĄD: Na tej linii jest już ciężarówka! (Zasada 14.6)"] }));
+        addLog("⛔ BŁĄD: Na tej linii jest już ciężarówka! (Zasada 14.6)");
         return;
     }
     if (transportType === 'train' && edge.hasTrain) {
-        set(state => ({ logs: [...state.logs, "⛔ BŁĄD: Na tej linii jest już pociąg! (Zasada 14.6)"] }));
+        addLog("⛔ BŁĄD: Na tej linii jest już pociąg! (Zasada 14.6)");
         return;
     }
 
@@ -421,7 +458,7 @@ const useGameStore = create(persist((set, get) => ({
     const targetNode = nodes.find(n => n.id === targetId);
 
     if (transportType === 'train' && (!sourceNode.isRail || !targetNode.isRail)) {
-        set(state => ({ logs: [...state.logs, "⛔ BŁĄD: Pociąg może poruszać się tylko między polami z torami kolejowymi!"] }));
+        addLog("⛔ BŁĄD: Pociąg może poruszać się tylko między polami z torami kolejowymi!");
         return;
     }
 
@@ -432,14 +469,21 @@ const useGameStore = create(persist((set, get) => ({
     const targetNodeIndex = newNodes.findIndex(n => n.id === targetId);
 
     if (newNodes[sourceNodeIndex].sovietMarker || newNodes[targetNodeIndex].sovietMarker) {
-         set(state => ({ logs: [...state.logs, "⛔ BŁĄD: Linia przerwana przez wroga! Odbij teren."], gameState: 'TRANSPORT_MODE' }));
+         addLog("⛔ BŁĄD: Linia przerwana przez wroga! Odbij teren.", `${sourceNode.name} -> ${targetNode.name}`);
+         set({ gameState: 'TRANSPORT_MODE' });
          return;
     }
 
+    // Build resource summary
+    const resourceSummary = [];
     ['fuel', 'ammo', 'food'].forEach(key => {
         const amount = resourcesToMove[key] || 0;
-        if (newNodes[sourceNodeIndex].resources && newNodes[sourceNodeIndex].resources[key] >= amount) {
-            newNodes[sourceNodeIndex].resources[key] -= amount;
+        if (amount > 0) {
+            const icons = { fuel: '⛽', ammo: '💣', food: '🍞' };
+            resourceSummary.push(`${amount}${icons[key]}`);
+            if (newNodes[sourceNodeIndex].resources && newNodes[sourceNodeIndex].resources[key] >= amount) {
+                newNodes[sourceNodeIndex].resources[key] -= amount;
+            }
         }
     });
 
@@ -452,6 +496,7 @@ const useGameStore = create(persist((set, get) => ({
         newNodes[targetNodeIndex].resources[key] = (newNodes[targetNodeIndex].resources[key] || 0) + amount;
     });
 
+    const transportIcon = transportType === 'truck' ? '🚚' : '🚂';
     if (transportType === 'truck') {
       newResources.trucks -= 1;
       newEdges[selectedEdgeIndex].hasTruck = true;
@@ -472,32 +517,47 @@ const useGameStore = create(persist((set, get) => ({
       spentAction: true // Action is now spent, can't cancel without cost
     };
 
-    set(state => ({
+    set({
         nodes: newNodes, 
         edges: newEdges, 
         playerResources: newResources, 
         gameState: 'TRANSPORT_MODE',
         selectedEdgeIndex: null, 
-        transportActionState: newTransportState,
-        logs: [...state.logs, `🚚 Transport (${transportType}) do ${newNodes[targetNodeIndex].name} wykonany. (${newTransportState.placedCount}/${limits.place}) ${newTransportState.placedCount === 1 ? '(-1 akcja)' : ''}`]
-    }));
+        transportActionState: newTransportState
+    });
+    
+    // Log transport with resources
+    const resourceText = resourceSummary.length > 0 ? ` [${resourceSummary.join(', ')}]` : '';
+    const actionText = newTransportState.placedCount === 1 ? ' (-1 akcja)' : '';
+    addLog(`${transportIcon} Umieszczono transport${resourceText}. (${newTransportState.placedCount}/${limits.place})${actionText}`, `${sourceNode.name} -> ${targetNode.name}`);
+    
     if (shouldTriggerReorg) get().triggerReorganization();
   },
 
+  confirmReorganization: (confirm) => {
+    const { transportToConfirm, executeTransport, setGameState } = get();
+    if (confirm) {
+      executeTransport(transportToConfirm.transportType, transportToConfirm.sourceId, transportToConfirm.targetId, transportToConfirm.resourcesToMove, true);
+    } else {
+      setGameState('TRANSPORT_MODE');
+    }
+    set({ transportToConfirm: null });
+  },
+
   moveArmy: (armyId, targetNodeId) => {
-    const { armies, nodes, edges, gameState, solitaire } = get();
+    const { armies, nodes, edges, gameState, solitaire, addLog } = get();
 
     // Check for correct army type first
     const army = armies.find(a => a.id === armyId);
     if ((gameState === 'MOVE_ARMORED_ARMY' && army.type !== 'armored') || (gameState === 'MOVE_FIELD_ARMIES' && army.type !== 'field')) {
-      set(state => ({ logs: [...state.logs, `⛔ W tym trybie możesz poruszać tylko armie ${gameState === 'MOVE_ARMORED_ARMY' ? 'pancerne' : 'polowe'}.`] }));
+      addLog(`⛔ W tym trybie możesz poruszać tylko armie ${gameState === 'MOVE_ARMORED_ARMY' ? 'pancerne' : 'polowe'}.`, null, army.name);
       return;
     }
 
     // Handle action spending
     if (gameState === 'MOVE_FIELD_ARMIES' || (gameState === 'MOVE_ARMORED_ARMY' && solitaire.moveCount === 0)) {
       if (solitaire.actionsLeft <= 0) {
-        set(state => ({ logs: [...state.logs, "⛔ Brak akcji! Zakończ turę."] }));
+        addLog("⛔ Brak akcji! Zakończ turę.");
         return;
       }
     }
@@ -505,7 +565,7 @@ const useGameStore = create(persist((set, get) => ({
     const armyIndex = armies.findIndex(a => a.id === armyId);
 
     if (army.isGrounded) {
-        set(state => ({ logs: [...state.logs, `⛔ ${army.name} jest uziemiona! Dostarcz żywność.`] }));
+        addLog(`⛔ Armia uziemiona! Dostarcz żywność.`, nodes.find(n => n.id === army.location)?.name, army.name);
         return;
     }
     const targetNode = nodes.find(n => n.id === targetNodeId);
@@ -517,19 +577,19 @@ const useGameStore = create(persist((set, get) => ({
 
     // Rule 5.1: Check for area color restriction
     if (targetNode.color && targetNode.color !== army.owner) {
-        set(state => ({ logs: [...state.logs, `⛔ Armia ${army.owner} nie może wejść do obszaru koloru ${targetNode.color}.`] }));
+        addLog(`⛔ Nie można wejść do obszaru koloru ${targetNode.color}.`, targetNode.name, army.name);
         return;
     }
 
     if (army.type === 'armored' && (army.supplies.fuel || 0) < 1) {
-      set(state => ({ logs: [...state.logs, `⛔ Brak paliwa na ruch!`] }));
+      addLog(`⛔ Brak paliwa na ruch!`, nodes.find(n => n.id === army.location)?.name, army.name);
       return;
     }
     let ammoCost = 0;
     if (targetNode.type === 'fortified' && targetNode.controller !== army.owner) {
         ammoCost = 1;
         if ((army.supplies.ammo || 0) < 1) {
-            set(state => ({ logs: [...state.logs, `⛔ Brak amunicji na wejście do fortu!`] }));
+            addLog(`⛔ Brak amunicji na wejście do fortu!`, targetNode.name, army.name);
             return;
         }
     }
@@ -566,7 +626,7 @@ const useGameStore = create(persist((set, get) => ({
     // Decrement action if this is the first move (moveCount === 0) or field army move
     const shouldDecrementAction = gameState === 'MOVE_FIELD_ARMIES' || (gameState === 'MOVE_ARMORED_ARMY' && solitaire.moveCount === 0);
     
-    set(state => ({
+    set({
       armies: newArmies, 
       nodes: newNodes, 
       previousLocation: prevLoc, 
@@ -574,13 +634,14 @@ const useGameStore = create(persist((set, get) => ({
       activeCard: drawnCard,
       gameState: nextGameState,
       solitaire: {
-        ...state.solitaire, // Keep the existing state
+        ...solitaire, // Keep the existing state
         ...newSolitaireState, // Overwrite with deck changes
-        moveCount: gameState === 'MOVE_ARMORED_ARMY' ? state.solitaire.moveCount + 1 : 0,
-        actionsLeft: shouldDecrementAction ? state.solitaire.actionsLeft - 1 : state.solitaire.actionsLeft
-      },
-      logs: [...state.logs, `${army.name} wchodzi do ${targetNode.name}.`]
-    }));
+        moveCount: gameState === 'MOVE_ARMORED_ARMY' ? solitaire.moveCount + 1 : 0,
+        actionsLeft: shouldDecrementAction ? solitaire.actionsLeft - 1 : solitaire.actionsLeft
+      }
+    });
+    
+    addLog(`Wchodzi do lokacji.`, targetNode.name, army.name);
 
     if (!targetNode.sovietMarker) {
         get().checkEncirclement();
@@ -596,8 +657,9 @@ const useGameStore = create(persist((set, get) => ({
   },
 
   confirmForcedMarch: (decision) => {
-    const { armies, activeArmyId, logs } = get();
+    const { armies, activeArmyId, nodes, addLog } = get();
     const army = armies.find(a => a.id === activeArmyId);
+    const location = nodes.find(n => n.id === army?.location);
     if (decision) {
       if (army.supplies.food > 0) {
         const newArmies = JSON.parse(JSON.stringify(armies));
@@ -605,11 +667,11 @@ const useGameStore = create(persist((set, get) => ({
         newArmies[armyIndex].supplies.food -= 1;
         set({
           armies: newArmies,
-          gameState: 'MOVE_FIELD_ARMIES',
-          logs: [...logs, `🌾 Wydano 1 żywność na marsz forsowny.`]
+          gameState: 'MOVE_FIELD_ARMIES'
         });
+        addLog(`🌾 Wydano 1 żywność na marsz forsowny.`, location?.name, army.name);
       } else {
-        set({ logs: [...logs, `⛔️ Brak żywności na marsz forsowny.`] });
+        addLog(`⛔️ Brak żywności na marsz forsowny.`, location?.name, army.name);
         set({ gameState: 'IDLE' });
       }
     } else {
@@ -618,16 +680,17 @@ const useGameStore = create(persist((set, get) => ({
   },
 
   confirmContinueMove: (decision) => {
-    const { armies, activeArmyId, logs } = get();
+    const { armies, activeArmyId, nodes, addLog } = get();
     const army = armies.find(a => a.id === activeArmyId);
+    const location = nodes.find(n => n.id === army?.location);
     if (decision) {
       if (army.supplies.fuel > 0) {
         set({
-          gameState: 'MOVE_ARMORED_ARMY',
-          logs: [...logs, `⛽️ Kontynuuj ruch (zużyjesz paliwo przy następnym ruchu).`]
+          gameState: 'MOVE_ARMORED_ARMY'
         });
+        addLog(`⛽️ Kontynuuj ruch (zużyjesz paliwo przy następnym ruchu).`, location?.name, army.name);
       } else {
-        set({ logs: [...logs, `⛔️ Brak paliwa, by kontynuować ruch.`] });
+        addLog(`⛔️ Brak paliwa, by kontynuować ruch.`, location?.name, army.name);
         set({ gameState: 'IDLE' });
       }
     } else {
@@ -636,12 +699,13 @@ const useGameStore = create(persist((set, get) => ({
   },
 
   resolveEncounter: (decision) => {
-    const { activeCard, activeArmyId, armies, previousLocation, nodes, playerResources } = get();
+    const { activeCard, activeArmyId, armies, previousLocation, nodes, playerResources, addLog } = get();
 
     const armyIndex = armies.findIndex(a => a.id === activeArmyId);
     const army = armies[armyIndex];
     const newArmies = [...armies];
     const newNodes = [...nodes];
+    const location = nodes.find(n => n.id === army.location);
 
     // Rule 9.10 - Card Retention
     if (activeCard.hasHand) {
@@ -652,16 +716,17 @@ const useGameStore = create(persist((set, get) => ({
       newNodes[nodeIndex].isPartisan = false;
       if (newNodes[nodeIndex].medal) get().awardMedal(newNodes[nodeIndex].name);
 
-      set(state => ({
+      set({
         playerResources: {
-          ...state.playerResources,
-          hand: [...state.playerResources.hand, activeCard],
+          ...playerResources,
+          hand: [...playerResources.hand, activeCard],
         },
         nodes: newNodes,
         gameState: 'IDLE',
-        activeCard: null,
-        logs: [...state.logs, `📥 Karta ${activeCard.name} dodana do ręki.`]
-      }));
+        activeCard: null
+      });
+      
+      addLog(`📥 Karta ${activeCard.name} dodana do ręki.`, location?.name, army.name);
       
       get().checkEncirclement();
       get().checkVictoryCondition(army.location);
@@ -686,11 +751,13 @@ const useGameStore = create(persist((set, get) => ({
                 const nodeIndex = newNodes.findIndex(n => n.id === army.location);
                 const node = newNodes[nodeIndex];
                 node.sovietMarker = false;
-                node.isPartisan = false; // NOWOŚĆ: Czyścimy flagę partyzantów po walce
+                node.isPartisan = false;
                 node.controller = army.owner;
                 if (node.medal) get().awardMedal(node.name);
 
-                set(state => ({ activeCard: null, armies: newArmies, nodes: newNodes, logs: [...state.logs, `⚔️ Zwycięstwo! Teren przejęty.`], recentlyCaptured: [...state.recentlyCaptured, army.location] }));
+                set({ activeCard: null, armies: newArmies, nodes: newNodes, recentlyCaptured: [...get().recentlyCaptured, army.location] });
+                addLog(`⚔️ Zwycięstwo! Teren przejęty.`, location?.name, army.name);
+                
                 get().checkEncirclement();
                 get().checkVictoryCondition(army.location);
 
@@ -709,7 +776,8 @@ const useGameStore = create(persist((set, get) => ({
                 newMedals -= 1;
                 logMsg += " Stracono medal!";
             }
-            set(state => ({ gameState: 'IDLE', activeCard: null, armies: newArmies, playerResources: { ...playerResources, medals: newMedals }, logs: [...state.logs, logMsg] }));
+            set({ gameState: 'IDLE', activeCard: null, armies: newArmies, playerResources: { ...playerResources, medals: newMedals } });
+            addLog(logMsg, location?.name, army.name);
         }
     } else if (activeCard.type === 'event') {
         if (activeCard.id === 'mud' && decision === 'pay_fuel') {
@@ -719,7 +787,8 @@ const useGameStore = create(persist((set, get) => ({
              newNodes[nodeIndex].sovietMarker = false;
              newNodes[nodeIndex].isPartisan = false;
              if(newNodes[nodeIndex].medal) get().awardMedal(newNodes[nodeIndex].name);
-             set(state => ({ gameState: 'IDLE', activeCard: null, armies: newArmies, nodes: newNodes, logs: [...state.logs, `Opłacono przejazd przez błoto.`] }));
+             set({ gameState: 'IDLE', activeCard: null, armies: newArmies, nodes: newNodes });
+             addLog(`Opłacono przejazd przez błoto.`, location?.name, army.name);
              get().checkEncirclement();
              get().checkVictoryCondition(army.location);
         } else if (activeCard.id === 'supplies') {
@@ -729,7 +798,8 @@ const useGameStore = create(persist((set, get) => ({
              newNodes[nodeIndex].sovietMarker = false;
              newNodes[nodeIndex].isPartisan = false;
              if(newNodes[nodeIndex].medal) get().awardMedal(newNodes[nodeIndex].name);
-             set(state => ({ gameState: 'IDLE', activeCard: null, armies: newArmies, nodes: newNodes, logs: [...state.logs, `Znaleziono amunicję.`] }));
+             set({ gameState: 'IDLE', activeCard: null, armies: newArmies, nodes: newNodes });
+             addLog(`Znaleziono amunicję.`, location?.name, army.name);
              get().checkEncirclement();
              get().checkVictoryCondition(army.location);
         } else {
@@ -745,7 +815,7 @@ const useGameStore = create(persist((set, get) => ({
                  get().checkEncirclement();
                  get().checkVictoryCondition(army.location);
             }
-            set(state => ({ gameState: 'IDLE', activeCard: null, armies: newArmies, nodes: newNodes }));
+            set({ gameState: 'IDLE', activeCard: null, armies: newArmies, nodes: newNodes });
         }
     }
   },
@@ -807,25 +877,24 @@ const useGameStore = create(persist((set, get) => ({
         gameState: 'IDLE',
         solitaire: { ...solitaire, logisticsLevel: newLogisticsLevel }
       });
-      setTimeout(() => { get().sovietReaction(); }, 1000);
   },
 
   takeSupplies: () => {
-    const { spendAction, playerResources, logs } = get();
+    const { spendAction, playerResources, addLog } = get();
     if (spendAction()) {
       const newSupplyStock = { ...playerResources.supplyStock };
       newSupplyStock.fuel += 2;
       newSupplyStock.ammo += 2;
       newSupplyStock.food += 2;
       set({
-        playerResources: { ...playerResources, supplyStock: newSupplyStock },
-        logs: [...logs, "📥 Pobrano zaopatrzenie (+2 każdego rodzaju) do Bazy Głównej."]
+        playerResources: { ...playerResources, supplyStock: newSupplyStock }
       });
+      addLog("📥 Pobrano zaopatrzenie: +2⛽ +2💣 +2🍞. (-1 akcja)", "Baza Główna");
     }
   },
 
   takeTransport: () => {
-    const { spendAction, playerResources, logs, solitaire } = get();
+    const { spendAction, playerResources, solitaire, addLog } = get();
     if (!spendAction()) return;
 
     // Rule 4.5 & 16: Check logistics limits
@@ -837,9 +906,7 @@ const useGameStore = create(persist((set, get) => ({
     
     // Check "Take" limit (maximum to take in one action)
     if (trucksToTake > limits.take) {
-      set(state => ({
-        logs: [...state.logs, `⛔ BŁĄD: Możesz wziąć maksymalnie ${limits.take} jednostek transportu na poziomie logistycznym ${solitaire.logisticsLevel}! (Zasada 4.5)`]
-      }));
+      addLog(`⛔ BŁĄD: Możesz wziąć maksymalnie ${limits.take} jednostek transportu na poziomie logistycznym ${solitaire.logisticsLevel}! (Zasada 4.5)`);
       return;
     }
     
@@ -847,21 +914,19 @@ const useGameStore = create(persist((set, get) => ({
     if (currentPossessed + trucksToTake > limits.possess) {
       const canTake = limits.possess - currentPossessed;
       if (canTake <= 0) {
-        set(state => ({
-          logs: [...state.logs, `⛔ BŁĄD: Osiągnięto limit posiadania ${limits.possess} jednostek transportu na poziomie logistycznym ${solitaire.logisticsLevel}! (Zasada 4.5)`]
-        }));
+        addLog(`⛔ BŁĄD: Osiągnięto limit posiadania ${limits.possess} jednostek transportu na poziomie logistycznym ${solitaire.logisticsLevel}! (Zasada 4.5)`);
         return;
       }
       trucksToTake = canTake;
       set({
-        playerResources: { ...playerResources, trucks: playerResources.trucks + trucksToTake },
-        logs: [...logs, `🚚 Pobrano ${trucksToTake} ciężarówki do rezerwy (limit posiadania: ${limits.possess}).`]
+        playerResources: { ...playerResources, trucks: playerResources.trucks + trucksToTake }
       });
+      addLog(`🚚 Pobrano ${trucksToTake} ciężarówki do rezerwy (limit: ${limits.possess}). (-1 akcja)`, "Baza Główna");
     } else {
       set({
-        playerResources: { ...playerResources, trucks: playerResources.trucks + trucksToTake },
-        logs: [...logs, `🚚 Pobrano ${trucksToTake} ciężarówki do rezerwy.`]
+        playerResources: { ...playerResources, trucks: playerResources.trucks + trucksToTake }
       });
+      addLog(`🚚 Pobrano ${trucksToTake} ciężarówki do rezerwy. (-1 akcja)`, "Baza Główna");
     }
   },
 
@@ -1075,6 +1140,14 @@ const useGameStore = create(persist((set, get) => ({
             victoryMessage: `KONIEC GRY! Sowiecki znacznik zaopatrzenia wyczerpany. Twój wynik to ${playerResources.medals} medali.`
         });
     } 
+  },
+
+  // --- HELPER FUNCTIONS ---
+  addLog: (message, location = null, armyName = null) => {
+    const formattedLog = createLogEntry(message, location, armyName);
+    set(state => ({ 
+      logs: [...state.logs, formattedLog]
+    }));
   },
 
   // --- MISSING FUNCTIONS ---
