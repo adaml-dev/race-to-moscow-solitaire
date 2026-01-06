@@ -97,12 +97,12 @@ const useGameStore = create(persist((set, get) => ({
   
   logs: ["Gra rozpoczęta. Cel: Moskwa i Leningrad."],
 
-  // --- SOLITAIRE GAME STATE ---
+    // --- SOLITAIRE GAME STATE ---
   solitaire: {
     chosenArmyGroup: null, // 'gray', 'white', or 'brown'
     turn: 1,
     actionsLeft: 2,
-    sovietMarkerPool: 3,
+    sovietMarkerPool: 20,
     transportReserve: 4,
     sovietDeck: [],
     pursuitDeck: [],
@@ -147,7 +147,7 @@ const useGameStore = create(persist((set, get) => ({
         chosenArmyGroup: armyGroup,
         turn: 1,
         actionsLeft: 2,
-        sovietMarkerPool: 3,
+        sovietMarkerPool: 20,
         transportReserve: 4,
         sovietDeck: shuffledSovietDeck,
         pursuitDeck: shuffledPursuitDeck,
@@ -315,47 +315,6 @@ const useGameStore = create(persist((set, get) => ({
       }
   },
 
-  triggerReorganization: () => {
-      const { armies, playerResources, edges, logs, solitaire } = get();
-      const newArmies = [...armies];
-      const newEdges = [...edges];
-      const newResources = { ...playerResources };
-      const newLogs = [...logs, "⚠️ REORGANIZACJA TEATRU DZIAŁAŃ!"];
-
-      let trucksReturned = 0;
-      let trainsReturned = 0;
-
-      newEdges.forEach(edge => {
-          if (edge.hasTruck) trucksReturned++;
-          if (edge.hasTrain) trainsReturned++;
-          edge.hasTruck = false;
-          edge.hasTrain = false;
-          edge.placedTransport = null;
-      });
-
-      newResources.trucks += trucksReturned;
-      newResources.trains += trainsReturned;
-      newLogs.push(`Powrót transportu: +${trucksReturned} 🚚, +${trainsReturned} 🚂.`);
-
-      newArmies.forEach(army => {
-          if ((army.supplies.food || 0) > 0) {
-              army.supplies.food -= 1;
-              newLogs.push(`${army.name} zjada 1 🍞.`);
-          } else {
-              if (!army.isGrounded) {
-                  army.isGrounded = true;
-                  newLogs.push(`⛔ ${army.name} nie ma jedzenia! UZIEMIONA (HALT).`);
-                  if (newResources.medals > 0) {
-                      newResources.medals -= 1;
-                      newLogs.push(`📉 Utracono medal za złą logistykę.`);
-                  }
-              }
-          }
-      });
-
-      set({ edges: newEdges, playerResources: newResources, armies: newArmies, logs: newLogs, gameState: 'IDLE' });
-      setTimeout(() => { get().sovietReaction(); }, 1000);
-  },
 
   transferResource: (armyId, resourceType, direction) => {
     const { armies, nodes, addLog } = get();
@@ -767,6 +726,20 @@ const useGameStore = create(persist((set, get) => ({
                 } else {
                   set({ gameState: 'IDLE' });
                 }
+            } else {
+                // Rule 11.3
+                const spentAmmo = Math.min((army.supplies.ammo || 0), activeCard.cost.ammo);
+                const spentFuel = Math.min((army.supplies.fuel || 0), activeCard.cost.fuel);
+                newArmies[armyIndex].supplies.ammo -= spentAmmo;
+                newArmies[armyIndex].supplies.fuel -= spentFuel;
+                newArmies[armyIndex].location = previousLocation;
+                
+                let logMsg = `⚔️ Niewystarczające zaopatrzenie! Armia wycofuje się.`;
+                if (spentAmmo > 0) logMsg += ` Zużyto ${spentAmmo} amunicji.`;
+                if (spentFuel > 0) logMsg += ` Zużyto ${spentFuel} paliwa.`;
+
+                set({ gameState: 'IDLE', activeCard: null, armies: newArmies });
+                addLog(logMsg, location?.name, army.name);
             }
         } else if (decision === 'retreat') {
             newArmies[armyIndex].location = previousLocation;
@@ -874,7 +847,7 @@ const useGameStore = create(persist((set, get) => ({
         playerResources: newResources, 
         armies: newArmies, 
         logs: newLogs, 
-        gameState: 'IDLE',
+        gameState: 'TRANSPORT_MODE',
         solitaire: { ...solitaire, logisticsLevel: newLogisticsLevel }
       });
   },
