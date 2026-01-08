@@ -490,6 +490,16 @@ const useGameStore = create(persist((set, get) => ({
     const actionText = newTransportState.placedCount === 1 ? ' (-1 akcja)' : '';
     addLog(`${transportIcon} Umieszczono transport${resourceText}. (${newTransportState.placedCount}/${limits.place})${actionText}`, `${sourceNode.name} -> ${targetNode.name}`);
     
+    // Auto-finish transport action if the placement limit is reached
+    if (newTransportState.placedCount >= limits.place) {
+      addLog(`✅ Osiągnięto limit transportu. Akcja zakończona automatycznie.`);
+      set({ 
+        gameState: 'IDLE', 
+        selectedEdgeIndex: null, 
+        transportActionState: { placedCount: 0, spentAction: false }
+      });
+    }
+
     if (shouldTriggerReorg) get().triggerReorganization();
   },
 
@@ -842,14 +852,18 @@ const useGameStore = create(persist((set, get) => ({
         newLogs.push(`🚂 +4 pociągi z rezerwy do stocku.`);
       }
 
-      set({ 
+      const limits = getLogisticsLimits(newLogisticsLevel);
+      newLogs.push(`🚚 Wybierz trasę transportu. Możesz umieścić maksymalnie ${limits.place} jednostek.`);
+
+      set(state => ({ 
         edges: newEdges, 
         playerResources: newResources, 
         armies: newArmies, 
         logs: newLogs, 
         gameState: 'TRANSPORT_MODE',
-        solitaire: { ...solitaire, logisticsLevel: newLogisticsLevel }
-      });
+        solitaire: { ...solitaire, logisticsLevel: newLogisticsLevel },
+        transportActionState: { placedCount: 0, spentAction: state.transportActionState.spentAction },
+      }));
   },
 
   takeSupplies: () => {
@@ -1014,8 +1028,12 @@ const useGameStore = create(persist((set, get) => ({
         if (newSovietMarkerPool > 0) {
             const sovietControlledAreas = newNodes.filter(n => n.sovietMarker).map(n => n.id);
             const possiblePlacements = newNodes.filter(n => {
-                if (n.controller !== null) return false; // Cannot have a player marker
+                // Rule 18: Must not have a soviet marker, player marker (controller), or printed player symbol (owner)
+                if (n.sovietMarker || n.controller || n.owner) {
+                    return false;
+                }
 
+                // Must be adjacent to an area with a Soviet marker
                 return edges.some(edge => {
                     const otherNodeId = edge.source === n.id ? edge.target : edge.source;
                     return sovietControlledAreas.includes(otherNodeId);

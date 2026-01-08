@@ -887,7 +887,7 @@ Place 1 Soviet marker on any land area that:
 
 Is adjacent to another area with a Soviet marker, and
 
-Has no player marker or printed player symbol
+Has no soviet or player marker or printed player symbol
 
 If there is no valid placement, discard the Soviet marker to the game box.
 

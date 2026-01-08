@@ -94,14 +94,14 @@ const SolitaireActions = ({ store }) => {
           <button className="btn btn-success" onClick={() => finishMove()} style={{gridColumn: '1 / -1'}}>Zakończ Ruch</button> :
           inTransportMode ?
           <>
+            {transportInProgress ? 
+            <p style={{gridColumn: '1 / -1', textAlign: 'center', fontSize: '0.85em', color: '#a1a1aa', margin: '5px 0'}}>
+              Wybierz kolejne trasy. Transport zakończy się automatycznie.
+            </p>
+            : 
             <button className="btn btn-warning" onClick={() => store.toggleTransportMode()} style={{gridColumn: '1 / -1'}}>
-              {transportInProgress ? '✅ Zakończ Transport' : '❌ Anuluj Transport'}
-            </button>
-            {transportInProgress && (
-              <p style={{gridColumn: '1 / -1', textAlign: 'center', fontSize: '0.85em', color: '#a1a1aa', margin: '5px 0'}}>
-                Wybierz kolejne trasy lub kliknij "Zakończ Transport"
-              </p>
-            )}
+              '❌ Anuluj Transport'
+            </button>}
           </> :
           <>
             <button className="btn btn-primary" onClick={() => store.setGameState('MOVE_FIELD_ARMIES')} disabled={noActions}>Ruch Armii Polowych</button>
