@@ -209,15 +209,88 @@ function App() {
       store.setSpacing(1.0);
   };
 
+  const [selectedArmyGroup, setSelectedArmyGroup] = useState(null);
+  const [selectedGameMode, setSelectedGameMode] = useState(null);
+
   if (gameStatus === 'CHOOSE_ARMY_GROUP') {
     return (
-      <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#131316', color: 'white', flexDirection: 'column'}}>
-        <h1 style={{color: '#eab308', fontSize: '3em'}}>Wybierz Grupę Armii</h1>
-        <div style={{display: 'flex', gap: '20px', marginTop: '20px'}}>
-          <button className="btn btn-primary" onClick={() => store.initializeSolitaireGame('gray')}>Grupa Armii Północ (Szara)</button>
-          <button className="btn btn-primary" onClick={() => store.initializeSolitaireGame('white')}>Grupa Armii Środek (Biała)</button>
-          <button className="btn btn-primary" onClick={() => store.initializeSolitaireGame('brown')}>Grupa Armii Południe (Brązowa)</button>
+      <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#131316', color: 'white', flexDirection: 'column', gap: '30px'}}>
+        <h1 style={{color: '#eab308', fontSize: '3em', marginBottom: '10px'}}>Wybierz Grupę Armii i Tryb Gry</h1>
+        
+        <div style={{display: 'flex', flexDirection: 'column', gap: '20px', alignItems: 'center'}}>
+          <h2 style={{color: '#a1a1aa', fontSize: '1.5em', margin: '0'}}>Grupa Armii:</h2>
+          <div style={{display: 'flex', gap: '15px'}}>
+            <button 
+              className={`btn ${selectedArmyGroup === 'gray' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setSelectedArmyGroup('gray')}
+              style={{border: selectedArmyGroup === 'gray' ? '2px solid white' : '1px solid #444'}}
+            >
+              Północ (Szara)
+            </button>
+            <button 
+              className={`btn ${selectedArmyGroup === 'white' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setSelectedArmyGroup('white')}
+              style={{border: selectedArmyGroup === 'white' ? '2px solid white' : '1px solid #444'}}
+            >
+              Środek (Biała)
+            </button>
+            <button 
+              className={`btn ${selectedArmyGroup === 'brown' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setSelectedArmyGroup('brown')}
+              style={{border: selectedArmyGroup === 'brown' ? '2px solid white' : '1px solid #444'}}
+            >
+              Południe (Brązowa)
+            </button>
+          </div>
         </div>
+
+        <div style={{display: 'flex', flexDirection: 'column', gap: '20px', alignItems: 'center'}}>
+          <h2 style={{color: '#a1a1aa', fontSize: '1.5em', margin: '0'}}>Tryb Gry:</h2>
+          <div style={{display: 'flex', gap: '15px', flexDirection: 'column', maxWidth: '600px'}}>
+            <button 
+              className={`btn ${selectedGameMode === 'normal' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setSelectedGameMode('normal')}
+              style={{
+                border: selectedGameMode === 'normal' ? '2px solid white' : '1px solid #444',
+                padding: '15px',
+                textAlign: 'left'
+              }}
+            >
+              <div style={{fontWeight: 'bold', fontSize: '1.1em', marginBottom: '5px'}}>🎯 Tryb Normalny</div>
+              <div style={{fontSize: '0.9em', color: '#a1a1aa'}}>3 żetony sowieckie - pełna rozgrywka</div>
+            </button>
+            <button 
+              className={`btn ${selectedGameMode === 'test' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setSelectedGameMode('test')}
+              style={{
+                border: selectedGameMode === 'test' ? '2px solid white' : '1px solid #444',
+                padding: '15px',
+                textAlign: 'left'
+              }}
+            >
+              <div style={{fontWeight: 'bold', fontSize: '1.1em', marginBottom: '5px'}}>🧪 Tryb Testowy</div>
+              <div style={{fontSize: '0.9em', color: '#a1a1aa'}}>20 żetonów sowieckich + automatyczne przetasowanie talii</div>
+            </button>
+          </div>
+        </div>
+
+        <button 
+          className="btn btn-success"
+          onClick={() => {
+            if (selectedArmyGroup && selectedGameMode) {
+              store.initializeSolitaireGame(selectedArmyGroup, selectedGameMode);
+            }
+          }}
+          disabled={!selectedArmyGroup || !selectedGameMode}
+          style={{
+            fontSize: '1.3em',
+            padding: '15px 40px',
+            marginTop: '20px',
+            opacity: (!selectedArmyGroup || !selectedGameMode) ? 0.5 : 1
+          }}
+        >
+          ROZPOCZNIJ GRĘ
+        </button>
       </div>
     );
   }

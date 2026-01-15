@@ -21,7 +21,37 @@
       "era": "green"
     },
     { 
-      "id": "shock", 
+      "id": "infantry_3", 
+      "name": "Piechota Sowiecka", 
+      "type": "combat", 
+      "cost": { "ammo": 2, "fuel": 0 }, 
+      "img": "⭐",
+      "description": "Walka kosztuje: 2 Amunicji",
+      "medals": 0,
+      "era": "green"
+    },
+    { 
+      "id": "infantry_4", 
+      "name": "Piechota Sowiecka", 
+      "type": "combat", 
+      "cost": { "ammo": 2, "fuel": 0 }, 
+      "img": "⭐",
+      "description": "Walka kosztuje: 2 Amunicji",
+      "medals": 0,
+      "era": "green"
+    },
+    { 
+      "id": "infantry_5", 
+      "name": "Piechota Sowiecka", 
+      "type": "combat", 
+      "cost": { "ammo": 2, "fuel": 0 }, 
+      "img": "⭐",
+      "description": "Walka kosztuje: 2 Amunicji",
+      "medals": 0,
+      "era": "green"
+    },
+    { 
+      "id": "shock_1", 
       "name": "Armia Uderzeniowa", 
       "type": "combat", 
       "cost": { "ammo": 3, "fuel": 0 }, 
@@ -31,17 +61,142 @@
       "era": "green"
     },
     { 
-      "id": "mech", 
+      "id": "shock_2", 
+      "name": "Armia Uderzeniowa", 
+      "type": "combat", 
+      "cost": { "ammo": 3, "fuel": 0 }, 
+      "img": "⭐⭐",
+      "description": "Walka kosztuje: 3 Amunicji",
+      "medals": 1,
+      "era": "green"
+    },
+    { 
+      "id": "shock_3", 
+      "name": "Armia Uderzeniowa", 
+      "type": "combat", 
+      "cost": { "ammo": 3, "fuel": 0 }, 
+      "img": "⭐⭐",
+      "description": "Walka kosztuje: 3 Amunicji",
+      "medals": 1,
+      "era": "green"
+    },
+    { 
+      "id": "cavalry_1", 
+      "name": "Kawaleria Sowiecka", 
+      "type": "combat", 
+      "cost": { "ammo": 2, "fuel": 0 }, 
+      "img": "🐴",
+      "description": "Walka kosztuje: 2 Amunicji",
+      "medals": 0,
+      "era": "green"
+    },
+    { 
+      "id": "cavalry_2", 
+      "name": "Kawaleria Sowiecka", 
+      "type": "combat", 
+      "cost": { "ammo": 2, "fuel": 0 }, 
+      "img": "🐴",
+      "description": "Walka kosztuje: 2 Amunicji",
+      "medals": 0,
+      "era": "green"
+    },
+    { 
+      "id": "fortified_1", 
+      "name": "Pozycje Fortyfikowane", 
+      "type": "combat", 
+      "cost": { "ammo": 3, "fuel": 0 }, 
+      "img": "🏰",
+      "description": "Walka kosztuje: 3 Amunicji",
+      "medals": 1,
+      "era": "green"
+    },
+    { 
+      "id": "fortified_2", 
+      "name": "Pozycje Fortyfikowane", 
+      "type": "combat", 
+      "cost": { "ammo": 3, "fuel": 0 }, 
+      "img": "🏰",
+      "description": "Walka kosztuje: 3 Amunicji",
+      "medals": 1,
+      "era": "green"
+    },
+    {
+      "id": "soviet_bombers_1",
+      "name": "Sowieckie Bombowce",
+      "type": "event",
+      "effect": "stop",
+      "img": "✈️",
+      "description": "Armia zatrzymuje się (Armia Pancerna może zapłacić 1 Paliwo by kontynuować).",
+      "era": "green"
+    },
+    {
+      "id": "soviet_bombers_2",
+      "name": "Sowieckie Bombowce",
+      "type": "event",
+      "effect": "stop",
+      "img": "✈️",
+      "description": "Armia zatrzymuje się (Armia Pancerna może zapłacić 1 Paliwo by kontynuować).",
+      "era": "green"
+    },
+    {
+      "id": "mud_soviet_1",
+      "name": "Rasputitsa (Błoto)",
+      "type": "event",
+      "effect": "stop",
+      "img": "💧",
+      "description": "Armia zatrzymuje się (Armia Pancerna może zapłacić 1 Paliwo by kontynuować).",
+      "era": "green"
+    },
+    {
+      "id": "mud_soviet_2",
+      "name": "Rasputitsa (Błoto)",
+      "type": "event",
+      "effect": "stop",
+      "img": "💧",
+      "description": "Armia zatrzymuje się (Armia Pancerna może zapłacić 1 Paliwo by kontynuować).",
+      "era": "green"
+    },
+    {
+      "id": "winter_1",
+      "name": "Zima Rosyjska",
+      "type": "event",
+      "effect": "stop",
+      "img": "❄️",
+      "description": "Armia zatrzymuje się (Armia Pancerna może zapłacić 1 Paliwo by kontynuować).",
+      "era": "green"
+    },
+    { 
+      "id": "mech_1", 
       "name": "Korpus Zmechanizowany", 
       "type": "combat", 
       "cost": { "ammo": 2, "fuel": 1 }, 
       "img": "⚙️",
-      "description": "Walka kosztuje: 1 Amunicji + 1 Paliwa",
+      "description": "Walka kosztuje: 2 Amunicji + 1 Paliwa",
       "medals": 1,
       "era": "blue"
     },
     { 
-      "id": "human_wave", 
+      "id": "mech_2", 
+      "name": "Korpus Zmechanizowany", 
+      "type": "combat", 
+      "cost": { "ammo": 2, "fuel": 1 }, 
+      "img": "⚙️",
+      "description": "Walka kosztuje: 2 Amunicji + 1 Paliwa",
+      "medals": 1,
+      "era": "blue"
+    },
+    { 
+      "id": "mech_3", 
+      "name": "Korpus Zmechanizowany", 
+      "type": "combat", 
+      "cost": { "ammo": 2, "fuel": 1 }, 
+      "img": "⚙️",
+      "description": "Walka kosztuje: 2 Amunicji + 1 Paliwa",
+      "medals": 1,
+      "era": "blue"
+    },
+    { 
+      "id": "human_wave_1", 
       "name": "Ludzka Fala", 
       "type": "combat", 
       "cost": { "ammo": 3, "fuel": 0 }, 
@@ -51,7 +206,27 @@
       "era": "blue"
     },
     { 
-      "id": "tank_corps", 
+      "id": "human_wave_2", 
+      "name": "Ludzka Fala", 
+      "type": "combat", 
+      "cost": { "ammo": 3, "fuel": 0 }, 
+      "img": "🌊",
+      "description": "Walka kosztuje: 3 Amunicji",
+      "medals": 2,
+      "era": "blue"
+    },
+    { 
+      "id": "human_wave_3", 
+      "name": "Ludzka Fala", 
+      "type": "combat", 
+      "cost": { "ammo": 3, "fuel": 0 }, 
+      "img": "🌊",
+      "description": "Walka kosztuje: 3 Amunicji",
+      "medals": 2,
+      "era": "blue"
+    },
+    { 
+      "id": "tank_corps_1", 
       "name": "Korpus Pancerny", 
       "type": "combat", 
       "cost": { "ammo": 3, "fuel": 1 }, 
@@ -60,23 +235,94 @@
       "medals": 2,
       "era": "blue"
     },
-    {
-      "id": "soviet_bombers",
-      "name": "Sowieckie Bombowce",
-      "type": "event",
-      "effect": "stop",
-      "img": "✈️",
-      "description": "Armia zatrzymuje się (Armia Pancerna może zapłacić 1 Paliwo by kontynuować).",
-      "era": "green"
+    { 
+      "id": "tank_corps_2", 
+      "name": "Korpus Pancerny", 
+      "type": "combat", 
+      "cost": { "ammo": 3, "fuel": 1 }, 
+      "img": "🛡️",
+      "description": "Walka kosztuje: 3 Amunicji + 1 Paliwa",
+      "medals": 2,
+      "era": "blue"
+    },
+    { 
+      "id": "tank_corps_3", 
+      "name": "Korpus Pancerny", 
+      "type": "combat", 
+      "cost": { "ammo": 3, "fuel": 1 }, 
+      "img": "🛡️",
+      "description": "Walka kosztuje: 3 Amunicji + 1 Paliwa",
+      "medals": 2,
+      "era": "blue"
+    },
+    { 
+      "id": "guards_1", 
+      "name": "Gwardia Sowiecka", 
+      "type": "combat", 
+      "cost": { "ammo": 3, "fuel": 1 }, 
+      "img": "🎖️",
+      "description": "Walka kosztuje: 3 Amunicji + 1 Paliwa",
+      "medals": 2,
+      "era": "blue"
+    },
+    { 
+      "id": "guards_2", 
+      "name": "Gwardia Sowiecka", 
+      "type": "combat", 
+      "cost": { "ammo": 3, "fuel": 1 }, 
+      "img": "🎖️",
+      "description": "Walka kosztuje: 3 Amunicji + 1 Paliwa",
+      "medals": 2,
+      "era": "blue"
+    },
+    { 
+      "id": "artillery_1", 
+      "name": "Artyleria Sowiecka", 
+      "type": "combat", 
+      "cost": { "ammo": 3, "fuel": 0 }, 
+      "img": "💥",
+      "description": "Walka kosztuje: 3 Amunicji",
+      "medals": 1,
+      "era": "blue"
+    },
+    { 
+      "id": "artillery_2", 
+      "name": "Artyleria Sowiecka", 
+      "type": "combat", 
+      "cost": { "ammo": 3, "fuel": 0 }, 
+      "img": "💥",
+      "description": "Walka kosztuje: 3 Amunicji",
+      "medals": 1,
+      "era": "blue"
+    },
+    { 
+      "id": "elite_tank", 
+      "name": "Elitarne Czołgi T-34", 
+      "type": "combat", 
+      "cost": { "ammo": 4, "fuel": 1 }, 
+      "img": "🚜",
+      "description": "Walka kosztuje: 4 Amunicji + 1 Paliwa",
+      "medals": 3,
+      "era": "blue"
+    },
+    { 
+      "id": "katyusha", 
+      "name": "Katyusha", 
+      "type": "combat", 
+      "cost": { "ammo": 4, "fuel": 0 }, 
+      "img": "🚀",
+      "description": "Walka kosztuje: 4 Amunicji",
+      "medals": 2,
+      "era": "blue"
     },
     {
-      "id": "mud_soviet",
-      "name": "Rasputitsa (Błoto)",
+      "id": "partisan_raid",
+      "name": "Nalot Partyzantów",
       "type": "event",
       "effect": "stop",
-      "img": "💧",
+      "img": "🎭",
       "description": "Armia zatrzymuje się (Armia Pancerna może zapłacić 1 Paliwo by kontynuować).",
-      "era": "green"
+      "era": "blue"
     }
   ],
   "pursuitDeck": [

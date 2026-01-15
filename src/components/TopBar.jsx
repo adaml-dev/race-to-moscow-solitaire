@@ -59,6 +59,11 @@ const TopBar = () => {
             +
           </button>
         </div>
+        <div className="resource-item">
+          <span style={{ fontSize: '18px' }}>🎴</span>
+          <span>Karty sowieckie:</span>
+          <strong>{solitaire.sovietDeck.length}</strong>
+        </div>
       </div>
       <div className="top-bar-section">
         <span className="top-bar-label">Baza Główna (Stock):</span>

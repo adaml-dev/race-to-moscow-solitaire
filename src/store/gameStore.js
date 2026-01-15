@@ -100,6 +100,7 @@ const useGameStore = create(persist((set, get) => ({
     // --- SOLITAIRE GAME STATE ---
   solitaire: {
     chosenArmyGroup: null, // 'gray', 'white', or 'brown'
+    gameMode: null, // 'normal' (3 markers) or 'test' (20 markers + reshuffle)
     turn: 1,
     actionsLeft: 2,
     sovietMarkerPool: 20,
@@ -113,8 +114,8 @@ const useGameStore = create(persist((set, get) => ({
 
   // --- AKCJA RESETU GRY ---
   // Zresetuj mechanikę, ale ZACHOWAJ ustawienia widoku (nie nadpisujemy viewState/spacing)
-  initializeSolitaireGame: (armyGroup) => {
-    console.log('initializeSolitaireGame', armyGroup);
+  initializeSolitaireGame: (armyGroup, gameMode) => {
+    console.log('initializeSolitaireGame', armyGroup, gameMode);
     const newNodes = initialMap.nodes.map(node => {
       if (node.owner && node.owner !== armyGroup) {
         return { ...node, controller: node.owner }; // Block areas of other army groups
@@ -139,15 +140,19 @@ const useGameStore = create(persist((set, get) => ({
     const shuffledSovietDeck = [...shuffle(greenCards), ...shuffle(blueCards)];
     const shuffledPursuitDeck = shuffle(cardsData.pursuitDeck);
 
+    // Set Soviet markers based on game mode
+    const sovietMarkers = gameMode === 'normal' ? 3 : 20;
+    const modeText = gameMode === 'normal' ? 'Normalny (3 żetony)' : 'Testowy (20 żetonów + przetasowanie)';
 
     set({
       nodes: newNodes,
       armies: newArmies,
       solitaire: {
         chosenArmyGroup: armyGroup,
+        gameMode: gameMode,
         turn: 1,
         actionsLeft: 2,
-        sovietMarkerPool: 20,
+        sovietMarkerPool: sovietMarkers,
         transportReserve: 4,
         sovietDeck: shuffledSovietDeck,
         pursuitDeck: shuffledPursuitDeck,
@@ -159,11 +164,12 @@ const useGameStore = create(persist((set, get) => ({
         trucks: 5,
         trains: 3,
         supplyStock: { fuel: 20, ammo: 20, food: 20 },
-        medals: 0
+        medals: 0,
+        hand: []
       },
       gameState: 'IDLE',
       gameStatus: 'PLAYING',
-      logs: [`Gra solo rozpoczęta jako Grupa Armii ${armyGroup}. Poziom logistyczny: 1.`],
+      logs: [`Gra solo rozpoczęta jako Grupa Armii ${armyGroup}. Tryb: ${modeText}. Poziom logistyczny: 1.`],
       activeCard: null,
       activeArmyId: null,
       previousLocation: null,
@@ -600,21 +606,33 @@ const useGameStore = create(persist((set, get) => ({
           addLog(`🎴 Odkryto kartę pościgową: ${drawnCard.name}`, targetNode.name, army.name);
         }
     } else if (targetNode.sovietMarker) {
-        // BUG FIX: Handle both deck drawing and empty deck case
+        // Handle deck drawing and empty deck case
         if (newSolitaireState.sovietDeck.length > 0) {
             const [firstCard, ...restOfDeck] = newSolitaireState.sovietDeck;
             drawnCard = firstCard;
             newSolitaireState.sovietDeck = restOfDeck;
             addLog(`🎴 Odkryto kartę sowiecką: ${drawnCard.name}`, targetNode.name, army.name);
         } else {
-            // If Soviet deck is empty, automatically capture the territory
-            addLog(`⚠️ Talia sowiecka pusta - automatyczne przejęcie terenu!`, targetNode.name, army.name);
-            const nodeIndex = newNodes.findIndex(n => n.id === targetNodeId);
-            newNodes[nodeIndex].controller = army.owner;
-            newNodes[nodeIndex].sovietMarker = false;
-            newNodes[nodeIndex].isPartisan = false;
-            if (wasMedal) get().awardMedal(targetNode.name);
-            set(state => ({ recentlyCaptured: [...state.recentlyCaptured, targetNodeId] }));
+            // Soviet deck is empty
+            if (solitaire.gameMode === 'test') {
+                // Test mode: Reshuffle all 33 Soviet cards and continue drawing
+                const greenCards = cardsData.sovietDeck.filter(c => c.era === 'green');
+                const blueCards = cardsData.sovietDeck.filter(c => c.era === 'blue');
+                const reshuffledDeck = [...shuffle(greenCards), ...shuffle(blueCards)];
+                const [firstCard, ...restOfDeck] = reshuffledDeck;
+                drawnCard = firstCard;
+                newSolitaireState.sovietDeck = restOfDeck;
+                addLog(`♻️ TRYB TESTOWY: Talia sowiecka przetasowana! Odkryto kartę: ${drawnCard.name}`, targetNode.name, army.name);
+            } else {
+                // Normal mode: Automatic capture
+                addLog(`⚠️ Talia sowiecka pusta - automatyczne przejęcie terenu!`, targetNode.name, army.name);
+                const nodeIndex = newNodes.findIndex(n => n.id === targetNodeId);
+                newNodes[nodeIndex].controller = army.owner;
+                newNodes[nodeIndex].sovietMarker = false;
+                newNodes[nodeIndex].isPartisan = false;
+                if (wasMedal) get().awardMedal(targetNode.name);
+                set(state => ({ recentlyCaptured: [...state.recentlyCaptured, targetNodeId] }));
+            }
         }
     }
 
