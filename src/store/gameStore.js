@@ -292,13 +292,14 @@ const useGameStore = create(persist((set, get) => ({
       let encirclementOccurred = false;
 
       newNodes.forEach(node => {
-          if (node.controller === null || node.sovietMarker) {
-              // NOWOŚĆ: Dodano warunek !node.isPartisan
-              // Partyzanci nie potrzebują zaopatrzenia, więc nie mogą być "okrążeni" z braku linii
+          // BUGFIX: Kocioł powinien przejmować TYLKO miasta ze znacznikiem sowieckim,
+          // nie neutralne miasta (controller === null bez sovietMarker).
+          // Miasta neutralne po Counter-Attack nie powinny być automatycznie przejmowane.
+          if (node.sovietMarker) {
               if (!node.isVictory && node.type !== 'main_supply_base' && !node.isPartisan) {
                   if (!hasSupplyLine(node.id)) {
                       encircledNames.push(node.name);
-                      if (node.sovietMarker) node.sovietMarker = false;
+                      node.sovietMarker = false;
                       node.controller = capturerColor; 
                       encirclementOccurred = true;
                       if (node.medal) get().awardMedal(node.name);
@@ -332,13 +333,11 @@ const useGameStore = create(persist((set, get) => ({
     if (direction === 'TO_ARMY') {
         if (!node.resources || (node.resources[resourceType] || 0) <= 0) return;
         if (resourceType === 'food' && army.isGrounded) {
-            const oldFood = newArmies[armyIndex].supplies.food || 0;
+            // Rule 17: When food is delivered to a grounded army, it is automatically spent
             newNodes[nodeIndex].resources.food -= 1;
-            newArmies[armyIndex].supplies.food = oldFood + 1;
             newArmies[armyIndex].isGrounded = false;
-            const newFood = newArmies[armyIndex].supplies.food;
             set({ armies: newArmies, nodes: newNodes });
-            addLog(`${icon} Załadowano 1 żywność (${oldFood}→${newFood}). HALT zdjęty!`, node.name, army.name);
+            addLog(`${icon} Wydano 1 żywność. HALT zdjęty!`, node.name, army.name);
         } else {
             if (armyLoad >= 6) {
                 addLog("⛔ Armia pełna! Max 6 żetonów.", node.name, army.name);
@@ -1304,4 +1303,3 @@ const useGameStore = create(persist((set, get) => ({
 ));
 
 export default useGameStore;
-
