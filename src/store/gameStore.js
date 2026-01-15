@@ -668,7 +668,7 @@ const useGameStore = create(persist((set, get) => ({
   },
 
   resolveEncounter: (decision) => {
-    const { activeCard, activeArmyId, armies, previousLocation, nodes, playerResources, addLog } = get();
+    const { activeCard, activeArmyId, armies, previousLocation, nodes, playerResources, addLog, solitaire } = get();
 
     const armyIndex = armies.findIndex(a => a.id === activeArmyId);
     const army = armies[armyIndex];
@@ -716,15 +716,21 @@ const useGameStore = create(persist((set, get) => ({
             if ((army.supplies.ammo || 0) >= activeCard.cost.ammo && (army.supplies.fuel || 0) >= activeCard.cost.fuel) {
                 newArmies[armyIndex].supplies.ammo -= activeCard.cost.ammo;
                 newArmies[armyIndex].supplies.fuel -= activeCard.cost.fuel;
-                
+
                 const nodeIndex = newNodes.findIndex(n => n.id === army.location);
                 const node = newNodes[nodeIndex];
+                const hadSovietMarker = node.sovietMarker;
                 node.sovietMarker = false;
                 node.isPartisan = false;
                 node.controller = army.owner;
                 if (node.medal) get().awardMedal(node.name);
 
-                set({ activeCard: null, armies: newArmies, nodes: newNodes, recentlyCaptured: [...get().recentlyCaptured, army.location] });
+                const newSolitaireState = { ...solitaire };
+                if (hadSovietMarker) {
+                    newSolitaireState.sovietMarkerPool = solitaire.sovietMarkerPool + 1;
+                }
+
+                set({ activeCard: null, armies: newArmies, nodes: newNodes, recentlyCaptured: [...get().recentlyCaptured, army.location], solitaire: newSolitaireState });
                 addLog(`⚔️ Zwycięstwo! Teren przejęty.`, location?.name, army.name);
                 
                 get().checkEncirclement();
@@ -852,17 +858,14 @@ const useGameStore = create(persist((set, get) => ({
         newLogs.push(`🚂 +4 pociągi z rezerwy do stocku.`);
       }
 
-      const limits = getLogisticsLimits(newLogisticsLevel);
-      newLogs.push(`🚚 Wybierz trasę transportu. Możesz umieścić maksymalnie ${limits.place} jednostek.`);
-
       set(state => ({ 
         edges: newEdges, 
         playerResources: newResources, 
         armies: newArmies, 
         logs: newLogs, 
-        gameState: 'TRANSPORT_MODE',
+        gameState: 'IDLE',
         solitaire: { ...solitaire, logisticsLevel: newLogisticsLevel },
-        transportActionState: { placedCount: 0, spentAction: state.transportActionState.spentAction },
+        transportActionState: { placedCount: 0, spentAction: false },
       }));
   },
 
@@ -1242,3 +1245,4 @@ const useGameStore = create(persist((set, get) => ({
 ));
 
 export default useGameStore;
+
