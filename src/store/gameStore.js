@@ -863,7 +863,7 @@ const useGameStore = create(persist((set, get) => ({
   },
 
   triggerReorganization: () => {
-      const { armies, playerResources, edges, logs, solitaire } = get();
+      const { armies, playerResources, edges, logs, solitaire, gameState, transportActionState } = get();
       const newArmies = [...armies];
       const newEdges = [...edges];
       const newResources = { ...playerResources };
@@ -911,14 +911,20 @@ const useGameStore = create(persist((set, get) => ({
         newLogs.push(`🚂 +4 pociągi z rezerwy do stocku.`);
       }
 
+      // BUGFIX: Preserve transport action state through reorganization
+      // If player was in the middle of a transport action, they should continue after reorganization
+      const isInTransportAction = gameState === 'TRANSPORT_MODE' || gameState === 'TRANSPORT_DIALOG';
+      const preservedGameState = isInTransportAction ? 'TRANSPORT_MODE' : 'IDLE';
+      const preservedTransportState = isInTransportAction ? transportActionState : { placedCount: 0, spentAction: false };
+
       set(state => ({ 
         edges: newEdges, 
         playerResources: newResources, 
         armies: newArmies, 
         logs: newLogs, 
-        gameState: 'IDLE',
+        gameState: preservedGameState,
         solitaire: { ...solitaire, logisticsLevel: newLogisticsLevel },
-        transportActionState: { placedCount: 0, spentAction: false },
+        transportActionState: preservedTransportState,
       }));
   },
 
