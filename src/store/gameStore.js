@@ -713,7 +713,12 @@ const useGameStore = create(persist((set, get) => ({
 
     if (activeCard.type === 'combat') {
         if (decision === 'fight') {
-            if ((army.supplies.ammo || 0) >= activeCard.cost.ammo && (army.supplies.fuel || 0) >= activeCard.cost.fuel) {
+            // Check if army has sufficient supplies for combat
+            const hasAmmo = (army.supplies.ammo || 0) >= activeCard.cost.ammo;
+            const hasFuel = (army.supplies.fuel || 0) >= activeCard.cost.fuel;
+            
+            if (hasAmmo && hasFuel) {
+                // SUFFICIENT SUPPLIES - Win combat
                 newArmies[armyIndex].supplies.ammo -= activeCard.cost.ammo;
                 newArmies[armyIndex].supplies.fuel -= activeCard.cost.fuel;
 
@@ -743,16 +748,26 @@ const useGameStore = create(persist((set, get) => ({
                   set({ gameState: 'IDLE' });
                 }
             } else {
-                // Rule 11.3
+                // Rule 11.3: INSUFFICIENT SUPPLIES - Spend as much as possible, then withdraw
                 const spentAmmo = Math.min((army.supplies.ammo || 0), activeCard.cost.ammo);
                 const spentFuel = Math.min((army.supplies.fuel || 0), activeCard.cost.fuel);
-                newArmies[armyIndex].supplies.ammo -= spentAmmo;
-                newArmies[armyIndex].supplies.fuel -= spentFuel;
+                
+                // Deduct the spent resources
+                newArmies[armyIndex].supplies.ammo = (army.supplies.ammo || 0) - spentAmmo;
+                newArmies[armyIndex].supplies.fuel = (army.supplies.fuel || 0) - spentFuel;
+                
+                // Withdraw to previous location
                 newArmies[armyIndex].location = previousLocation;
                 
+                // Build log message showing what was spent
                 let logMsg = `⚔️ Niewystarczające zaopatrzenie! Armia wycofuje się.`;
-                if (spentAmmo > 0) logMsg += ` Zużyto ${spentAmmo} amunicji.`;
-                if (spentFuel > 0) logMsg += ` Zużyto ${spentFuel} paliwa.`;
+                if (spentAmmo > 0 || spentFuel > 0) {
+                    logMsg += ` Wydano:`;
+                    if (spentAmmo > 0) logMsg += ` ${spentAmmo} amunicji`;
+                    if (spentAmmo > 0 && spentFuel > 0) logMsg += ` i`;
+                    if (spentFuel > 0) logMsg += ` ${spentFuel} paliwa`;
+                    logMsg += `.`;
+                }
 
                 set({ gameState: 'IDLE', activeCard: null, armies: newArmies });
                 addLog(logMsg, location?.name, army.name);
