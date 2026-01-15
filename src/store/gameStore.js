@@ -794,9 +794,26 @@ const useGameStore = create(persist((set, get) => ({
                 addLog(logMsg, location?.name, army.name);
             }
         } else if (decision === 'retreat') {
+            // Rule 11.3: When retreating, spend as much of the required battle cost as possible
+            const spentAmmo = Math.min((army.supplies.ammo || 0), activeCard.cost.ammo);
+            const spentFuel = Math.min((army.supplies.fuel || 0), activeCard.cost.fuel);
+            
+            // Deduct the spent resources
+            newArmies[armyIndex].supplies.ammo = (army.supplies.ammo || 0) - spentAmmo;
+            newArmies[armyIndex].supplies.fuel = (army.supplies.fuel || 0) - spentFuel;
+            
+            // Withdraw to previous location
             newArmies[armyIndex].location = previousLocation;
+            
             let newMedals = playerResources.medals;
             let logMsg = `🏳️ Odwrót.`;
+            if (spentAmmo > 0 || spentFuel > 0) {
+                logMsg += ` Utracono:`;
+                if (spentAmmo > 0) logMsg += ` ${spentAmmo} amunicji`;
+                if (spentAmmo > 0 && spentFuel > 0) logMsg += ` i`;
+                if (spentFuel > 0) logMsg += ` ${spentFuel} paliwa`;
+                logMsg += `.`;
+            }
             if (newMedals > 0) {
                 newMedals -= 1;
                 logMsg += " Stracono medal!";
