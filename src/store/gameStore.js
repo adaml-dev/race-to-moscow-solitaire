@@ -596,10 +596,26 @@ const useGameStore = create(persist((set, get) => ({
         newSolitaireState.pursuitDeck = restOfDeck;
         if (wasMedal) get().awardMedal(targetNode.name);
         set(state => ({ recentlyCaptured: [...state.recentlyCaptured, targetNodeId] }));
+        if (drawnCard) {
+          addLog(`🎴 Odkryto kartę pościgową: ${drawnCard.name}`, targetNode.name, army.name);
+        }
     } else if (targetNode.sovietMarker) {
-        const [firstCard, ...restOfDeck] = newSolitaireState.sovietDeck;
-        drawnCard = firstCard;
-        newSolitaireState.sovietDeck = restOfDeck;
+        // BUG FIX: Handle both deck drawing and empty deck case
+        if (newSolitaireState.sovietDeck.length > 0) {
+            const [firstCard, ...restOfDeck] = newSolitaireState.sovietDeck;
+            drawnCard = firstCard;
+            newSolitaireState.sovietDeck = restOfDeck;
+            addLog(`🎴 Odkryto kartę sowiecką: ${drawnCard.name}`, targetNode.name, army.name);
+        } else {
+            // If Soviet deck is empty, automatically capture the territory
+            addLog(`⚠️ Talia sowiecka pusta - automatyczne przejęcie terenu!`, targetNode.name, army.name);
+            const nodeIndex = newNodes.findIndex(n => n.id === targetNodeId);
+            newNodes[nodeIndex].controller = army.owner;
+            newNodes[nodeIndex].sovietMarker = false;
+            newNodes[nodeIndex].isPartisan = false;
+            if (wasMedal) get().awardMedal(targetNode.name);
+            set(state => ({ recentlyCaptured: [...state.recentlyCaptured, targetNodeId] }));
+        }
     }
 
     const nextGameState = drawnCard ? 'ENCOUNTER_RESOLVING' : (gameState === 'MOVE_ARMORED_ARMY' && solitaire.moveCount < 2) ? 'MOVE_ARMORED_ARMY' : 'IDLE';
