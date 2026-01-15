@@ -332,28 +332,35 @@ const useGameStore = create(persist((set, get) => ({
     if (direction === 'TO_ARMY') {
         if (!node.resources || (node.resources[resourceType] || 0) <= 0) return;
         if (resourceType === 'food' && army.isGrounded) {
+            const oldFood = newArmies[armyIndex].supplies.food || 0;
             newNodes[nodeIndex].resources.food -= 1;
+            newArmies[armyIndex].supplies.food = oldFood + 1;
             newArmies[armyIndex].isGrounded = false;
+            const newFood = newArmies[armyIndex].supplies.food;
             set({ armies: newArmies, nodes: newNodes });
-            addLog(`${icon} Załadowano 1 żywność. HALT zdjęty!`, node.name, army.name);
+            addLog(`${icon} Załadowano 1 żywność (${oldFood}→${newFood}). HALT zdjęty!`, node.name, army.name);
         } else {
             if (armyLoad >= 6) {
                 addLog("⛔ Armia pełna! Max 6 żetonów.", node.name, army.name);
                 return;
             }
+            const oldAmount = newArmies[armyIndex].supplies[resourceType] || 0;
             newNodes[nodeIndex].resources[resourceType] -= 1;
-            newArmies[armyIndex].supplies[resourceType] = (newArmies[armyIndex].supplies[resourceType] || 0) + 1;
+            newArmies[armyIndex].supplies[resourceType] = oldAmount + 1;
+            const newAmount = newArmies[armyIndex].supplies[resourceType];
             set({ armies: newArmies, nodes: newNodes });
-            addLog(`${icon} Załadowano 1 ${resourceType} do armii.`, node.name, army.name);
+            addLog(`${icon} Załadowano 1 ${resourceType} (${oldAmount}→${newAmount}).`, node.name, army.name);
         }
     } else if (direction === 'TO_NODE') {
         if ((army.supplies[resourceType] || 0) <= 0) return;
-        newArmies[armyIndex].supplies[resourceType] -= 1;
+        const oldAmount = newArmies[armyIndex].supplies[resourceType] || 0;
+        newArmies[armyIndex].supplies[resourceType] = oldAmount - 1;
+        const newAmount = newArmies[armyIndex].supplies[resourceType];
         if (!newNodes[nodeIndex].resources) newNodes[nodeIndex].resources = { fuel:0, ammo:0, food:0 };
         if (!newNodes[nodeIndex].resources[resourceType]) newNodes[nodeIndex].resources[resourceType] = 0;
         newNodes[nodeIndex].resources[resourceType] += 1;
         set({ armies: newArmies, nodes: newNodes });
-        addLog(`${icon} Wyładowano 1 ${resourceType} z armii.`, node.name, army.name);
+        addLog(`${icon} Wyładowano 1 ${resourceType} (${oldAmount}→${newAmount}).`, node.name, army.name);
     }
   },
 
@@ -564,8 +571,14 @@ const useGameStore = create(persist((set, get) => ({
     }
 
     const newArmies = JSON.parse(JSON.stringify(armies));
+    const oldFuel = army.supplies.fuel || 0;
+    const oldAmmo = army.supplies.ammo || 0;
+    
     if (army.type === 'armored') newArmies[armyIndex].supplies.fuel -= 1;
     newArmies[armyIndex].supplies.ammo -= ammoCost;
+    
+    const newFuel = newArmies[armyIndex].supplies.fuel;
+    const newAmmo = newArmies[armyIndex].supplies.ammo;
     
     const prevLoc = army.location;
     newArmies[armyIndex].location = targetNodeId;
@@ -610,7 +623,15 @@ const useGameStore = create(persist((set, get) => ({
       }
     });
     
-    addLog(`Wchodzi do lokacji.`, targetNode.name, army.name);
+    // Log movement with resource changes
+    let moveLog = `Wchodzi do lokacji.`;
+    if (army.type === 'armored' && oldFuel !== newFuel) {
+      moveLog += ` ⛽(${oldFuel}→${newFuel})`;
+    }
+    if (ammoCost > 0 && oldAmmo !== newAmmo) {
+      moveLog += ` 💣(${oldAmmo}→${newAmmo})`;
+    }
+    addLog(moveLog, targetNode.name, army.name);
 
     if (!targetNode.sovietMarker) {
         get().checkEncirclement();

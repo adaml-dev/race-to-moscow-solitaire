@@ -470,7 +470,14 @@ const renderActionContext = () => {
                     onMouseDown={(e) => e.stopPropagation()}
                     onClick={() => isRailheadCandidate && store.advanceRailhead(node.id)}
                 >
-                    <strong style={{ display: 'block', marginBottom: '3px' }}>{node.name}</strong>
+                    <strong style={{ display: 'block', marginBottom: '3px' }}>
+                      {node.name}
+                      {node.resources && (node.resources.fuel > 0 || node.resources.ammo > 0 || node.resources.food > 0) && (
+                        <span style={{ marginLeft: '6px' }}>
+                          {(node.resources.fuel || 0)}{(node.resources.ammo || 0)}{(node.resources.food || 0)}
+                        </span>
+                      )}
+                    </strong>
                     
                     <div style={{display: 'flex', gap: '4px', justifyContent: 'center', alignItems: 'center', marginTop: '4px'}}>
                       {node.medal && <MedalIcon size={18} color="#eab308" title="Cel Medalowy" />}
@@ -478,14 +485,6 @@ const renderActionContext = () => {
                       {node.type === 'fortified' && <FortIcon size={18} color="var(--text-secondary)" />}
                       {node.sovietMarker && <SovietIcon size={20} color="var(--accent-red)" />}
                     </div>
-                    
-                    {(node.resources?.fuel > 0 || node.resources?.ammo > 0 || node.resources?.food > 0) && (
-                        <div style={{fontSize: '0.75em', backgroundColor: 'var(--bg-element)', borderRadius: '4px', padding: '4px', marginTop: '4px', border: '1px solid var(--accent-orange)', display: 'flex', gap: '6px', justifyContent: 'center'}}>
-                            {node.resources.fuel > 0 && <span style={{display: 'flex', alignItems: 'center', gap: '2px'}}><FuelIcon size={12} />{node.resources.fuel}</span>}
-                            {node.resources.ammo > 0 && <span style={{display: 'flex', alignItems: 'center', gap: '2px'}}><AmmoIcon size={12} />{node.resources.ammo}</span>}
-                            {node.resources.food > 0 && <span style={{display: 'flex', alignItems: 'center', gap: '2px'}}><FoodIcon size={12} />{node.resources.food}</span>}
-                        </div>
-                    )}
 
                     {gameState === 'RESUPPLY_BASE' && node.type === 'main_supply_base' && (
                         <button 
