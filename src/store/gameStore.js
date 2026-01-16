@@ -1049,7 +1049,15 @@ const useGameStore = create(persist((set, get) => ({
   },
 
   endTurn: () => {
-    const { nodes, edges, solitaire, sovietReaction } = get();
+    const { nodes, edges, solitaire, sovietReaction, activeCard, gameState, addLog } = get();
+    
+    // BUGFIX: Prevent ending turn while an encounter is unresolved
+    // Rule 9.6: Marker is placed AFTER resolving the card, so we must resolve before ending turn
+    if (activeCard !== null || gameState === 'ENCOUNTER_RESOLVING') {
+      addLog("⛔ Musisz najpierw rozwiązać spotkanie, zanim zakończysz turę!");
+      return;
+    }
+    
     // Helper: Check if area is controlled by any German player (not Soviet)
     const isPlayerControlled = (controller) => controller && controller !== null && ['gray', 'white', 'brown'].includes(controller);
     
