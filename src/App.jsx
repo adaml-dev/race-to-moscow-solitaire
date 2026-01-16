@@ -463,7 +463,15 @@ const renderActionContext = () => {
               const targetNode = nodes.find(n => n.id === edge.target);
               const isDynamicRail = sourceNode?.isRail && targetNode?.isRail;
 
-              const lineColor = edge.placedTransport ? (edge.placedTransport === 'train' ? '#8b8b8b' : '#ea580c') : (isDynamicRail ? '#eab308' : '#52525b');
+              // Rule 14.6: Different colors for different transport states
+              let lineColor = isDynamicRail ? '#eab308' : '#52525b'; // Default: rail or road
+              if (edge.hasTruck && edge.hasTrain) {
+                lineColor = '#9333ea'; // Purple for both
+              } else if (edge.hasTrain) {
+                lineColor = '#8b8b8b'; // Gray for train only
+              } else if (edge.hasTruck) {
+                lineColor = '#ea580c'; // Orange for truck only
+              }
               
               const dx = end.x - start.x;
               const dy = end.y - start.y;
@@ -491,18 +499,38 @@ const renderActionContext = () => {
                   
                   {isDynamicRail ? (
                     <>
-                      <path d={pathData1} stroke={lineColor} strokeWidth={edge.placedTransport ? "3" : "2"} fill="none"  strokeLinecap="round" />
-                      <path d={pathData2} stroke={lineColor} strokeWidth={edge.placedTransport ? "3" : "2"} fill="none"  strokeLinecap="round" />
+                      <path d={pathData1} stroke={lineColor} strokeWidth={(edge.hasTruck || edge.hasTrain) ? "3" : "2"} fill="none"  strokeLinecap="round" />
+                      <path d={pathData2} stroke={lineColor} strokeWidth={(edge.hasTruck || edge.hasTrain) ? "3" : "2"} fill="none"  strokeLinecap="round" />
                     </>
                   ) : (
-                    <path d={pathData} stroke={lineColor} strokeWidth={edge.placedTransport ? "6" : "4"} fill="none" strokeDasharray={edge.placedTransport ? "0" : "8,4"} strokeLinecap="round" />
+                    <path d={pathData} stroke={lineColor} strokeWidth={(edge.hasTruck || edge.hasTrain) ? "6" : "4"} fill="none" strokeDasharray={(edge.hasTruck || edge.hasTrain) ? "0" : "8,4"} strokeLinecap="round" />
                   )}
 
-                  {/* Transport icon on path */}
-                  {edge.placedTransport && (
-                    <g transform={`translate(${midX - 12}, ${midY - 12})`}>
-                      {edge.placedTransport === 'train' ? <TrainIcon size={24} color="#fff" /> : <TruckIcon size={24} color="#ea580c" />}
-                    </g>
+                  {/* Transport icons on path - Rule 14.6: show both if both present */}
+                  {(edge.hasTruck || edge.hasTrain) && (
+                    <>
+                      {edge.hasTruck && edge.hasTrain ? (
+                        // Both transport types present - show both icons
+                        <>
+                          <g transform={`translate(${midX - 24}, ${midY - 12})`}>
+                            <TruckIcon size={20} color="#ea580c" />
+                          </g>
+                          <g transform={`translate(${midX + 4}, ${midY - 12})`}>
+                            <TrainIcon size={20} color="#fff" />
+                          </g>
+                        </>
+                      ) : edge.hasTrain ? (
+                        // Only train
+                        <g transform={`translate(${midX - 12}, ${midY - 12})`}>
+                          <TrainIcon size={24} color="#fff" />
+                        </g>
+                      ) : (
+                        // Only truck
+                        <g transform={`translate(${midX - 12}, ${midY - 12})`}>
+                          <TruckIcon size={24} color="#ea580c" />
+                        </g>
+                      )}
+                    </>
                   )}
                 </g>
               );

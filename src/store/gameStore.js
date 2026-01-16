@@ -419,9 +419,14 @@ const useGameStore = create(persist((set, get) => ({
     }
 
     // Rule 14.6: Check stacking restrictions
-    if (edge.placedTransport) {
-        const existing = edge.placedTransport === 'truck' ? 'ciężarówkę' : 'pociąg';
-        addLog(`⛔ BŁĄD: Na tej linii jest już ${existing}! (Zasada 14.6)`);
+    // A truck can coexist with a train, but not with another truck
+    // A train can coexist with a truck, but not with another train
+    if (transportType === 'truck' && edge.hasTruck) {
+        addLog(`⛔ BŁĄD: Na tej linii jest już ciężarówka! (Zasada 14.6)`);
+        return;
+    }
+    if (transportType === 'train' && edge.hasTrain) {
+        addLog(`⛔ BŁĄD: Na tej linii jest już pociąg! (Zasada 14.6)`);
         return;
     }
 
@@ -471,12 +476,10 @@ const useGameStore = create(persist((set, get) => ({
     if (transportType === 'truck') {
       newResources.trucks -= 1;
       newEdges[selectedEdgeIndex].hasTruck = true;
-      newEdges[selectedEdgeIndex].placedTransport = 'truck';
     }
     if (transportType === 'train') {
       newResources.trains -= 1;
       newEdges[selectedEdgeIndex].hasTrain = true;
-      newEdges[selectedEdgeIndex].placedTransport = 'train';
     }
 
     let shouldTriggerReorg = false;
