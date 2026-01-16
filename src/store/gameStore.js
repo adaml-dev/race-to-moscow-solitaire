@@ -1146,8 +1146,22 @@ const useGameStore = create(persist((set, get) => ({
         if (validTargets.length > 0) {
             const targetNode = validTargets[Math.floor(Math.random() * validTargets.length)];
             const nodeIndex = newNodes.findIndex(n => n.id === targetNode.id);
+            
+            // Log resources taken by Soviets (if any)
+            const resources = newNodes[nodeIndex].resources;
+            if (resources && (resources.fuel > 0 || resources.ammo > 0 || resources.food > 0)) {
+                const resourceList = [];
+                if (resources.fuel > 0) resourceList.push(`${resources.fuel}⛽`);
+                if (resources.ammo > 0) resourceList.push(`${resources.ammo}💣`);
+                if (resources.food > 0) resourceList.push(`${resources.food}🍞`);
+                newLogs.push(`💥 Counter-Attack! Soviets remove marker from ${targetNode.name} and take: ${resourceList.join(', ')}.`);
+            } else {
+                newLogs.push(`💥 Counter-Attack! Soviets remove marker from ${targetNode.name}.`);
+            }
+            
+            // Remove player control and clear all resources
             newNodes[nodeIndex].controller = null;
-            newLogs.push(`💥 Counter-Attack! Soviets remove marker from ${targetNode.name}.`);
+            newNodes[nodeIndex].resources = { fuel: 0, ammo: 0, food: 0 };
             actionTaken = true;
         }
     }
