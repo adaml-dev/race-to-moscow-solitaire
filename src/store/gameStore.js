@@ -301,17 +301,18 @@ const useGameStore = create(persist((set, get) => ({
       let markersReturned = 0;
 
       newNodes.forEach(node => {
-          // BUGFIX: Kocioł powinien przejmować TYLKO miasta ze znacznikiem sowieckim,
-          // nie neutralne miasta (controller === null bez sovietMarker).
-          // Miasta neutralne po Counter-Attack nie powinny być automatycznie przejmowane.
+          // Rule 12: Kocioł captures ALL areas with Soviet markers that are cut off from victory cities
+          // This includes partisan-recaptured cities (those recaptured by counter-attacks)
+          // isPartisan is just a status flag and doesn't prevent encirclement
           if (node.sovietMarker) {
-              if (!node.isVictory && node.type !== 'main_supply_base' && !node.isPartisan) {
+              if (!node.isVictory && node.type !== 'main_supply_base') {
                   if (!hasSupplyLine(node.id)) {
                       encircledNames.push(node.name);
                       node.sovietMarker = false;
-                      node.controller = capturerColor; 
+                      node.controller = capturerColor;
+                      node.isPartisan = false; // Clear partisan flag when captured by Kocioł
                       encirclementOccurred = true;
-                      markersReturned++; // BUGFIX: Count markers returned to pool
+                      markersReturned++;
                       if (node.medal) get().awardMedal(node.name);
                   }
               }
@@ -599,18 +600,19 @@ const useGameStore = create(persist((set, get) => ({
     const wasMedal = targetNode.medal && targetNode.controller !== army.owner;
 
     // Rule 9.6: "Entering an area you already control does not trigger a draw"
+    // Only draw cards when entering UNOCCUPIED (controller === null) areas
     const alreadyControlled = targetNode.controller === army.owner;
+    const isUnoccupied = targetNode.controller === null;
 
-    if (!alreadyControlled && !targetNode.sovietMarker && targetNode.controller !== army.owner) {
-        // BUGFIX: Don't place marker immediately - wait for pursuit card resolution
-        // Only draw the pursuit card here
+    if (isUnoccupied && !targetNode.sovietMarker) {
+        // Draw from Pursuit deck when entering unoccupied area without Soviet marker
         const [firstCard, ...restOfDeck] = newSolitaireState.pursuitDeck;
         drawnCard = firstCard;
         newSolitaireState.pursuitDeck = restOfDeck;
         if (drawnCard) {
           addLog(`🎴 Odkryto kartę pościgową: ${drawnCard.name}`, targetNode.name, army.name);
         }
-    } else if (!alreadyControlled && targetNode.sovietMarker) {
+    } else if (isUnoccupied && targetNode.sovietMarker) {
         // Handle deck drawing and empty deck case
         if (newSolitaireState.sovietDeck.length > 0) {
             const [firstCard, ...restOfDeck] = newSolitaireState.sovietDeck;
