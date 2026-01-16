@@ -78,7 +78,7 @@ const ContinueMoveConfirm = ({ store }) => (
 );
 
 const SolitaireActions = ({ store }) => {
-  const { solitaire, takeSupplies, takeTransport, endTurn, finishMove, gameState, transportActionState } = store;
+  const { solitaire, takeSupplies, takeTransport, endTurn, finishMove, gameState, transportActionState, isGameOver } = store;
   const { turn, actionsLeft, moveCount } = solitaire;
   const noActions = actionsLeft <= 0;
   
@@ -89,9 +89,14 @@ const SolitaireActions = ({ store }) => {
   return (
     <div className="panel-section">
       <div className="panel-title">TURA {turn} - Akcje: {actionsLeft}</div>
+      {isGameOver && (
+        <div style={{backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#fca5a5', border: '1px solid #ef4444', textAlign: 'center', padding: '10px', borderRadius: '6px', marginBottom: '15px', fontWeight: 'bold'}}>
+          🏁 KONIEC GRY
+        </div>
+      )}
       <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px'}}>
         { gameState === 'MOVE_ARMORED_ARMY' && moveCount > 0 ?
-          <button className="btn btn-success" onClick={() => finishMove()} style={{gridColumn: '1 / -1'}}>Zakończ Ruch</button> :
+          <button className="btn btn-success" onClick={() => finishMove()} disabled={isGameOver} style={{gridColumn: '1 / -1'}}>Zakończ Ruch</button> :
           inTransportMode ?
           <>
             {transportInProgress ? 
@@ -99,18 +104,18 @@ const SolitaireActions = ({ store }) => {
               Wybierz kolejne trasy. Transport zakończy się automatycznie.
             </p>
             : 
-            <button className="btn btn-warning" onClick={() => store.toggleTransportMode()} style={{gridColumn: '1 / -1'}}>
+            <button className="btn btn-warning" onClick={() => store.toggleTransportMode()} disabled={isGameOver} style={{gridColumn: '1 / -1'}}>
               '❌ Anuluj Transport'
             </button>}
           </> :
           <>
-            <button className="btn btn-primary" onClick={() => store.setGameState('MOVE_FIELD_ARMIES')} disabled={noActions}>Ruch Armii Polowych</button>
-            <button className="btn btn-primary" onClick={() => store.setGameState('MOVE_ARMORED_ARMY')} disabled={noActions}>Ruch Armii Pancernej</button>
-            <button className="btn btn-primary" onClick={() => store.toggleTransportMode()} disabled={noActions}>Transport</button>
-            <button className="btn btn-primary" onClick={() => store.setGameState('RESUPPLY_BASE')} disabled={noActions}>Uzupełnij Bazę</button>
-            <button className="btn btn-primary" onClick={() => takeSupplies()} disabled={noActions}>Weź Zaopatrzenie</button>
-            <button className="btn btn-primary" onClick={() => takeTransport()} disabled={noActions}>Weź Transport</button>
-            <button className="btn btn-warning" onClick={() => endTurn()}>Zakończ Turę</button>
+            <button className="btn btn-primary" onClick={() => store.setGameState('MOVE_FIELD_ARMIES')} disabled={noActions || isGameOver}>Ruch Armii Polowych</button>
+            <button className="btn btn-primary" onClick={() => store.setGameState('MOVE_ARMORED_ARMY')} disabled={noActions || isGameOver}>Ruch Armii Pancernej</button>
+            <button className="btn btn-primary" onClick={() => store.toggleTransportMode()} disabled={noActions || isGameOver}>Transport</button>
+            <button className="btn btn-primary" onClick={() => store.setGameState('RESUPPLY_BASE')} disabled={noActions || isGameOver}>Uzupełnij Bazę</button>
+            <button className="btn btn-primary" onClick={() => takeSupplies()} disabled={noActions || isGameOver}>Weź Zaopatrzenie</button>
+            <button className="btn btn-primary" onClick={() => takeTransport()} disabled={noActions || isGameOver}>Weź Transport</button>
+            <button className="btn btn-warning" onClick={() => endTurn()} disabled={isGameOver}>Zakończ Turę</button>
           </>
         }
       </div>

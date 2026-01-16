@@ -82,6 +82,7 @@ const useGameStore = create(persist((set, get) => ({
   gameState: 'IDLE', 
   gameStatus: 'CHOOSE_ARMY_GROUP', 
   victoryMessage: '',
+  isGameOver: false,
 
   activeCard: null,
   activeArmyId: null,
@@ -169,6 +170,7 @@ const useGameStore = create(persist((set, get) => ({
       },
       gameState: 'IDLE',
       gameStatus: 'PLAYING',
+      isGameOver: false,
       logs: [`Gra solo rozpoczęta jako Grupa Armii ${armyGroup}. Tryb: ${modeText}. Poziom logistyczny: 1.`],
       activeCard: null,
       activeArmyId: null,
@@ -596,7 +598,10 @@ const useGameStore = create(persist((set, get) => ({
     let newSolitaireState = { ...solitaire };
     const wasMedal = targetNode.medal && targetNode.controller !== army.owner;
 
-    if (!targetNode.sovietMarker && targetNode.controller !== army.owner) {
+    // Rule 9.6: "Entering an area you already control does not trigger a draw"
+    const alreadyControlled = targetNode.controller === army.owner;
+
+    if (!alreadyControlled && !targetNode.sovietMarker && targetNode.controller !== army.owner) {
         // BUGFIX: Don't place marker immediately - wait for pursuit card resolution
         // Only draw the pursuit card here
         const [firstCard, ...restOfDeck] = newSolitaireState.pursuitDeck;
@@ -605,7 +610,7 @@ const useGameStore = create(persist((set, get) => ({
         if (drawnCard) {
           addLog(`🎴 Odkryto kartę pościgową: ${drawnCard.name}`, targetNode.name, army.name);
         }
-    } else if (targetNode.sovietMarker) {
+    } else if (!alreadyControlled && targetNode.sovietMarker) {
         // Handle deck drawing and empty deck case
         if (newSolitaireState.sovietDeck.length > 0) {
             const [firstCard, ...restOfDeck] = newSolitaireState.sovietDeck;
@@ -1270,8 +1275,9 @@ const useGameStore = create(persist((set, get) => ({
     const { playerResources, solitaire, addLog } = get();
     if (victoryType === "standard") {
         // Don't change gameStatus - keep the map visible
-        // Instead, add a bolded log message with turn information
+        // Instead, add a bolded log message with turn information and set game over flag
         addLog(`**KONIEC GRY!** Sowiecki znacznik zaopatrzenia wyczerpany w turze ${solitaire.turn}. Twój wynik to ${playerResources.medals} medali.`);
+        set({ isGameOver: true });
     } 
   },
 
