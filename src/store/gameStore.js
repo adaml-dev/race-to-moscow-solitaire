@@ -264,7 +264,7 @@ const useGameStore = create(persist((set, get) => ({
   },
 
   checkEncirclement: () => {
-      const { nodes, edges, logs, armies, activeArmyId } = get();
+      const { nodes, edges, logs, armies, activeArmyId, solitaire } = get();
       const victoryNodes = nodes.filter(n => n.isVictory).map(n => n.id);
       
       const activeArmy = armies.find(a => a.id === activeArmyId) || armies[0];
@@ -296,6 +296,7 @@ const useGameStore = create(persist((set, get) => ({
       let encircledNames = [];
       const newNodes = [...nodes];
       let encirclementOccurred = false;
+      let markersReturned = 0;
 
       newNodes.forEach(node => {
           // BUGFIX: Kocioł powinien przejmować TYLKO miasta ze znacznikiem sowieckim,
@@ -308,6 +309,7 @@ const useGameStore = create(persist((set, get) => ({
                       node.sovietMarker = false;
                       node.controller = capturerColor; 
                       encirclementOccurred = true;
+                      markersReturned++; // BUGFIX: Count markers returned to pool
                       if (node.medal) get().awardMedal(node.name);
                   }
               }
@@ -317,7 +319,8 @@ const useGameStore = create(persist((set, get) => ({
       if (encirclementOccurred) {
           set({ 
               nodes: newNodes,
-              logs: [...logs, `⚔️ KOCIOŁ! Odcięto i przejęto: ${encircledNames.join(', ')}`]
+              logs: [...logs, `⚔️ KOCIOŁ! Odcięto i przejęto: ${encircledNames.join(', ')}`],
+              solitaire: { ...solitaire, sovietMarkerPool: solitaire.sovietMarkerPool + markersReturned }
           });
       }
   },
@@ -627,10 +630,15 @@ const useGameStore = create(persist((set, get) => ({
                 // Normal mode: Automatic capture
                 addLog(`⚠️ Talia sowiecka pusta - automatyczne przejęcie terenu!`, targetNode.name, army.name);
                 const nodeIndex = newNodes.findIndex(n => n.id === targetNodeId);
+                const hadSovietMarker = newNodes[nodeIndex].sovietMarker;
                 newNodes[nodeIndex].controller = army.owner;
                 newNodes[nodeIndex].sovietMarker = false;
                 newNodes[nodeIndex].isPartisan = false;
                 if (wasMedal) get().awardMedal(targetNode.name);
+                // Return Soviet marker to pool
+                if (hadSovietMarker) {
+                    newSolitaireState.sovietMarkerPool = solitaire.sovietMarkerPool + 1;
+                }
                 set(state => ({ recentlyCaptured: [...state.recentlyCaptured, targetNodeId] }));
             }
         }
@@ -734,10 +742,17 @@ const useGameStore = create(persist((set, get) => ({
     if (activeCard.hasHand) {
       // Rule 9.6: After resolving the card, place player marker on captured area
       const nodeIndex = newNodes.findIndex(n => n.id === army.location);
+      const hadSovietMarker = newNodes[nodeIndex].sovietMarker;
       newNodes[nodeIndex].controller = army.owner;
       newNodes[nodeIndex].sovietMarker = false;
       newNodes[nodeIndex].isPartisan = false;
       if (newNodes[nodeIndex].medal) get().awardMedal(newNodes[nodeIndex].name);
+
+      // Return Soviet marker to pool
+      const newSolitaireState = { ...solitaire };
+      if (hadSovietMarker) {
+        newSolitaireState.sovietMarkerPool = solitaire.sovietMarkerPool + 1;
+      }
 
       set({
         playerResources: {
@@ -746,7 +761,8 @@ const useGameStore = create(persist((set, get) => ({
         },
         nodes: newNodes,
         gameState: 'IDLE',
-        activeCard: null
+        activeCard: null,
+        solitaire: newSolitaireState
       });
       
       addLog(`📥 Karta ${activeCard.name} dodana do ręki.`, location?.name, army.name);
@@ -858,22 +874,34 @@ const useGameStore = create(persist((set, get) => ({
         if (activeCard.id === 'mud' && decision === 'pay_fuel') {
              newArmies[armyIndex].supplies.fuel -= 1;
              const nodeIndex = newNodes.findIndex(n => n.id === army.location);
+             const hadSovietMarker = newNodes[nodeIndex].sovietMarker;
              newNodes[nodeIndex].controller = army.owner;
              newNodes[nodeIndex].sovietMarker = false;
              newNodes[nodeIndex].isPartisan = false;
              if(newNodes[nodeIndex].medal) get().awardMedal(newNodes[nodeIndex].name);
-             set({ gameState: 'IDLE', activeCard: null, armies: newArmies, nodes: newNodes });
+             // Return Soviet marker to pool
+             const newSolitaireState = { ...solitaire };
+             if (hadSovietMarker) {
+               newSolitaireState.sovietMarkerPool = solitaire.sovietMarkerPool + 1;
+             }
+             set({ gameState: 'IDLE', activeCard: null, armies: newArmies, nodes: newNodes, solitaire: newSolitaireState });
              addLog(`Opłacono przejazd przez błoto.`, location?.name, army.name);
              get().checkEncirclement();
              get().checkVictoryCondition(army.location);
         } else if (activeCard.id === 'supplies') {
             newArmies[armyIndex].supplies.ammo = (newArmies[armyIndex].supplies.ammo || 0) + 1;
              const nodeIndex = newNodes.findIndex(n => n.id === army.location);
+             const hadSovietMarker = newNodes[nodeIndex].sovietMarker;
              newNodes[nodeIndex].controller = army.owner;
              newNodes[nodeIndex].sovietMarker = false;
              newNodes[nodeIndex].isPartisan = false;
              if(newNodes[nodeIndex].medal) get().awardMedal(newNodes[nodeIndex].name);
-             set({ gameState: 'IDLE', activeCard: null, armies: newArmies, nodes: newNodes });
+             // Return Soviet marker to pool
+             const newSolitaireState = { ...solitaire };
+             if (hadSovietMarker) {
+               newSolitaireState.sovietMarkerPool = solitaire.sovietMarkerPool + 1;
+             }
+             set({ gameState: 'IDLE', activeCard: null, armies: newArmies, nodes: newNodes, solitaire: newSolitaireState });
              addLog(`Znaleziono amunicję.`, location?.name, army.name);
              get().checkEncirclement();
              get().checkVictoryCondition(army.location);
@@ -883,12 +911,20 @@ const useGameStore = create(persist((set, get) => ({
             } else {
                  // Rule 9.6: After resolving the card, place player marker on captured area
                  const nodeIndex = newNodes.findIndex(n => n.id === army.location);
+                 const hadSovietMarker = newNodes[nodeIndex].sovietMarker;
                  newNodes[nodeIndex].controller = army.owner;
                  newNodes[nodeIndex].sovietMarker = false;
                  newNodes[nodeIndex].isPartisan = false;
                  if(newNodes[nodeIndex].medal) get().awardMedal(newNodes[nodeIndex].name);
+                 // Return Soviet marker to pool
+                 const newSolitaireState = { ...solitaire };
+                 if (hadSovietMarker) {
+                   newSolitaireState.sovietMarkerPool = solitaire.sovietMarkerPool + 1;
+                 }
+                 set({ gameState: 'IDLE', activeCard: null, armies: newArmies, nodes: newNodes, solitaire: newSolitaireState });
                  get().checkEncirclement();
                  get().checkVictoryCondition(army.location);
+                 return;
             }
             set({ gameState: 'IDLE', activeCard: null, armies: newArmies, nodes: newNodes });
         }
