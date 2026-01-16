@@ -1059,6 +1059,9 @@ const useGameStore = create(persist((set, get) => ({
     let newLogs = [...logs];
     let newSovietMarkerPool = sovietMarkerPool;
 
+    // Helper: Check if area is controlled by any German player (not Soviet)
+    const isPlayerControlled = (controller) => controller && controller !== null && ['gray', 'white', 'brown'].includes(controller);
+
     // 1. Determine Action: Counter-Attack or Place Marker (simplified logic)
     // In a full game, this would be based on a player's specific Front Card.
     // Here, we'll randomly choose one of the available front cards.
@@ -1082,8 +1085,8 @@ const useGameStore = create(persist((set, get) => ({
         const protectedLocations = new Set(armyAndAdjacentLocations);
 
         const validTargets = newNodes.filter(n => {
-            // Must be player-controlled
-            if (n.controller !== chosenArmyGroup) return false;
+            // BUGFIX: Must be player-controlled (any German color, not just chosenArmyGroup)
+            if (!isPlayerControlled(n.controller)) return false;
 
             if (get().recentlyCaptured.includes(n.id)) return false; // Don't counter-attack recently captured cities
 
