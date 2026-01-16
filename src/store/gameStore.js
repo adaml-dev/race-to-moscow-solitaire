@@ -559,9 +559,9 @@ const useGameStore = create(persist((set, get) => ({
     );
     if (!isConnected) return;
 
-    // Rule 5.1: Check for area color restriction
-    if (targetNode.color && targetNode.color !== army.owner) {
-        addLog(`⛔ Nie można wejść do obszaru koloru ${targetNode.color}.`, targetNode.name, army.name);
+    // Rule 5.1: Check for area restriction - can't enter other army group territories
+    if (targetNode.owner && targetNode.owner !== army.owner) {
+        addLog(`⛔ Nie można wejść do obszaru grupy armii ${targetNode.owner}.`, targetNode.name, army.name);
         return;
     }
 
