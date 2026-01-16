@@ -319,7 +319,7 @@ const useGameStore = create(persist((set, get) => ({
       if (encirclementOccurred) {
           set({ 
               nodes: newNodes,
-              logs: [...logs, `⚔️ KOCIOŁ! Odcięto i przejęto: ${encircledNames.join(', ')}`],
+              logs: [...logs, `⚔️ KOCIOŁ! Odcięto i przejęto: ${encircledNames.join(', ')}. ☭(OBECNY→brak) | Pool: ${solitaire.sovietMarkerPool}→${solitaire.sovietMarkerPool + markersReturned}`],
               solitaire: { ...solitaire, sovietMarkerPool: solitaire.sovietMarkerPool + markersReturned }
           });
       }
@@ -419,12 +419,9 @@ const useGameStore = create(persist((set, get) => ({
     }
 
     // Rule 14.6: Check stacking restrictions
-    if (transportType === 'truck' && edge.hasTruck) {
-        addLog("⛔ BŁĄD: Na tej linii jest już ciężarówka! (Zasada 14.6)");
-        return;
-    }
-    if (transportType === 'train' && edge.hasTrain) {
-        addLog("⛔ BŁĄD: Na tej linii jest już pociąg! (Zasada 14.6)");
+    if (edge.placedTransport) {
+        const existing = edge.placedTransport === 'truck' ? 'ciężarówkę' : 'pociąg';
+        addLog(`⛔ BŁĄD: Na tej linii jest już ${existing}! (Zasada 14.6)`);
         return;
     }
 
@@ -1179,11 +1176,11 @@ const useGameStore = create(persist((set, get) => ({
                 const nodeIndex = newNodes.findIndex(n => n.id === targetNode.id);
                 newNodes[nodeIndex].sovietMarker = true;
                 newSovietMarkerPool -= 1;
-                newLogs.push(`➕ Soviets place a marker in ${targetNode.name}.`);
+                newLogs.push(`➕ Soviets place a marker in ${targetNode.name}. ☭(brak→OBECNY) | Pool: ${sovietMarkerPool}→${newSovietMarkerPool}`);
                 actionTaken = true;
             } else {
                  newSovietMarkerPool -= 1; // Discard marker to the box
-                 newLogs.push(`🚮 No valid placement for Soviet marker. It is discarded.`);
+                 newLogs.push(`🚮 No valid placement for Soviet marker. It is discarded. Pool: ${sovietMarkerPool}→${newSovietMarkerPool}`);
                  actionTaken = true;
             }
         } else {
@@ -1258,12 +1255,11 @@ const useGameStore = create(persist((set, get) => ({
   },
   
   endGame: (victoryType) => {
-    const { playerResources } = get();
+    const { playerResources, solitaire, addLog } = get();
     if (victoryType === "standard") {
-        set({ 
-            gameStatus: 'VICTORY', 
-            victoryMessage: `KONIEC GRY! Sowiecki znacznik zaopatrzenia wyczerpany. Twój wynik to ${playerResources.medals} medali.`
-        });
+        // Don't change gameStatus - keep the map visible
+        // Instead, add a bolded log message with turn information
+        addLog(`**KONIEC GRY!** Sowiecki znacznik zaopatrzenia wyczerpany w turze ${solitaire.turn}. Twój wynik to ${playerResources.medals} medali.`);
     } 
   },
 
